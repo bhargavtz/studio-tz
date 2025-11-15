@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 
 type PreviewPanelProps = {
   htmlContent: string;
@@ -13,21 +13,21 @@ const interactionScript = `
 document.addEventListener('DOMContentLoaded', () => {
   const style = document.createElement('style');
   style.innerHTML = \`
-      [data-webforge-hover] { outline: 2px dashed #FF9800 !important; cursor: pointer !important; transition: outline 0.1s ease-in-out; }
-      [data-webforge-selected] { outline: 2px solid #3F51B5 !important; box-shadow: 0 0 15px rgba(63, 81, 181, 0.5) !important; }
+      [data-webforge-hover] { outline: 2px dashed #3B82F6 !important; cursor: pointer !important; transition: outline 0.1s ease-in-out; }
+      [data-webforge-selected] { outline: 2px solid #93C5FD !important; box-shadow: 0 0 15px rgba(59, 130, 246, 0.5) !important; }
   \`;
   document.head.appendChild(style);
 
   let lastHovered = null;
   document.body.addEventListener('mouseover', (e) => {
-    if (e.target === document.body) return;
+    if (e.target === document.body || !e.target.tagName) return;
     if (lastHovered) lastHovered.removeAttribute('data-webforge-hover');
     e.target.setAttribute('data-webforge-hover', 'true');
     lastHovered = e.target;
   });
 
   document.body.addEventListener('mouseout', (e) => {
-    e.target.removeAttribute('data-webforge-hover');
+    if(e.target.removeAttribute) e.target.removeAttribute('data-webforge-hover');
   });
 
   document.body.addEventListener('click', (e) => {
@@ -36,7 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       document.querySelectorAll('[data-webforge-selected]').forEach(el => el.removeAttribute('data-webforge-selected'));
       const target = e.target;
-      if (target === document.body) return;
+      if (target === document.body || !e.target.tagName) return;
       
       target.setAttribute('data-webforge-selected', 'true');
       
@@ -60,16 +60,18 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 `;
 
-export function PreviewPanel({ htmlContent, cssContent, jsContent }: PreviewPanelProps) {
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+export const PreviewPanel = forwardRef<HTMLIFrameElement, PreviewPanelProps>(({ htmlContent, cssContent, jsContent }, ref) => {
+  const localRef = useRef<HTMLIFrameElement>(null);
+  useImperativeHandle(ref, () => localRef.current!);
+
 
   useEffect(() => {
-    if (!iframeRef.current) return;
-    const iframe = iframeRef.current;
+    const iframe = localRef.current;
+    if (!iframe) return;
     
     const fullHtml = `
       <!DOCTYPE html>
-      <html lang="en">
+      <html lang="en" class="dark">
       <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -79,10 +81,11 @@ export function PreviewPanel({ htmlContent, cssContent, jsContent }: PreviewPane
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
         <script>
           tailwind.config = {
+            darkMode: 'class',
             theme: {
               extend: {
                 fontFamily: {
-                  body: ['Inter', 'sans-serif'],
+                  sans: ['Inter', 'sans-serif'],
                   headline: ['Space Grotesk', 'sans-serif'],
                 }
               }
@@ -96,11 +99,11 @@ export function PreviewPanel({ htmlContent, cssContent, jsContent }: PreviewPane
             }
             ${cssContent}
         </style>
-        <script>${jsContent}</script>
         <script>${interactionScript}</script>
       </head>
       <body>
         ${htmlContent}
+        <script>${jsContent}</script>
       </body>
       </html>
     `;
@@ -110,13 +113,15 @@ export function PreviewPanel({ htmlContent, cssContent, jsContent }: PreviewPane
   }, [htmlContent, cssContent, jsContent]);
 
   return (
-    <div className="relative h-full w-full bg-white shadow-inner">
+    <div className="relative h-full w-full bg-background shadow-inner">
       <iframe
-        ref={iframeRef}
+        ref={localRef}
         title="Live Preview"
         className="h-full w-full border-0"
         sandbox="allow-scripts allow-same-origin"
       />
     </div>
   );
-}
+});
+
+PreviewPanel.displayName = 'PreviewPanel';

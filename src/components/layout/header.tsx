@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/button';
 import { downloadProject } from '@/lib/zip';
-import { Download, Bot } from 'lucide-react';
+import { Download, Bot, Sparkles } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 type HeaderProps = {
@@ -33,13 +33,13 @@ export function Header({ htmlContent, cssContent, jsContent }: HeaderProps) {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 flex h-16 items-center justify-between border-b bg-background/90 px-4 backdrop-blur-sm md:px-6">
-      <div className="flex items-center gap-3">
-        <Bot className="h-7 w-7 text-primary" />
+      <div className="flex items-center gap-2">
+        <Sparkles className="h-7 w-7 text-primary" />
         <h1 className="text-xl font-bold font-headline text-foreground">
           WebForgeAI
         </h1>
       </div>
-      <Button onClick={handleDownload} variant="outline" className="bg-accent text-accent-foreground hover:bg-accent/90">
+      <Button onClick={handleDownload} variant="default">
         <Download className="mr-2 h-4 w-4" />
         Download Project
       </Button>

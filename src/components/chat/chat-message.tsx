@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils';
-import { Bot, User } from 'lucide-react';
+import { Bot, User, Sparkles } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
 export type Message = {
@@ -14,17 +14,19 @@ export function ChatMessage({ message }: { message: Message }) {
     <div
       className={cn(
         'flex items-start gap-3',
-        !isAssistant && 'flex-row-reverse'
+        !isAssistant && 'justify-end'
       )}
     >
-      <Avatar className="h-8 w-8 border">
-        <AvatarFallback className="bg-transparent">
-          {isAssistant ? <Bot /> : <User />}
-        </AvatarFallback>
-      </Avatar>
+        {isAssistant && (
+            <Avatar className="h-8 w-8 border bg-primary text-primary-foreground">
+                <AvatarFallback className="bg-transparent">
+                    <Sparkles className="h-5 w-5" />
+                </AvatarFallback>
+            </Avatar>
+        )}
       <div
         className={cn(
-          'max-w-sm rounded-lg px-4 py-2.5 text-sm shadow-sm md:max-w-md',
+          'max-w-md rounded-lg px-4 py-2.5 text-sm shadow-sm md:max-w-lg',
           isAssistant
             ? 'bg-card text-card-foreground'
             : 'bg-primary text-primary-foreground'
@@ -32,6 +34,13 @@ export function ChatMessage({ message }: { message: Message }) {
       >
         <p className="whitespace-pre-wrap">{message.content}</p>
       </div>
+        {!isAssistant && (
+            <Avatar className="h-8 w-8 border">
+                <AvatarFallback className="bg-transparent">
+                <User />
+                </AvatarFallback>
+            </Avatar>
+        )}
     </div>
   );
 }

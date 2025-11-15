@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { type SelectedElement } from '@/app/page';
 import { useEffect, useState, useTransition } from 'react';
-import { X, LoaderCircle } from 'lucide-react';
+import { X, LoaderCircle, WrapText, Brush } from 'lucide-react';
 
 type EditorPanelProps = {
   element: SelectedElement | null;
@@ -41,19 +41,19 @@ export function EditorPanel({ element, onClose, onUpdate }: EditorPanelProps) {
 
   return (
     <div className="absolute top-0 right-0 z-10 h-full w-[340px] bg-background/80 p-4 backdrop-blur-sm transition-transform transform-gpu animate-in slide-in-from-right-full duration-300">
-      <Card className="h-full shadow-xl flex flex-col">
+      <Card className="h-full shadow-xl flex flex-col bg-card/95">
         <CardHeader className="flex flex-row items-center justify-between p-4">
           <CardTitle className="text-base font-headline">Edit Element</CardTitle>
           <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
             <X className="h-4 w-4" />
           </Button>
         </CardHeader>
-        <CardContent className="space-y-4 p-4 flex-1 overflow-y-auto">
+        <CardContent className="space-y-6 p-4 flex-1 overflow-y-auto">
           <div className="space-y-2">
-            <Label htmlFor="tag-name">Tag</Label>
-            <Input id="tag-name" value={`<${element.tagName.toLowerCase()}>`} disabled className="font-mono" />
+            <Label htmlFor="tag-name" className="text-xs text-muted-foreground">Tag</Label>
+            <Input id="tag-name" value={`<${element.tagName.toLowerCase()}>`} disabled className="font-mono text-sm" />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-3">
             <Label htmlFor="text-content">Text Content</Label>
             <Textarea
               id="text-content"
@@ -62,12 +62,12 @@ export function EditorPanel({ element, onClose, onUpdate }: EditorPanelProps) {
               rows={3}
               disabled={isUpdating}
             />
-             <Button size="sm" onClick={() => handleUpdate(`Change the text content to: "${textContent}"`)} disabled={isUpdating}>
-                {isUpdating ? <LoaderCircle className="animate-spin mr-2" /> : null}
+             <Button size="sm" onClick={() => handleUpdate(`Change the text content to: "${textContent}"`)} disabled={isUpdating} className="w-full">
+                {isUpdating ? <LoaderCircle className="animate-spin" /> : <WrapText />}
                 Update Text
              </Button>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-3">
             <Label htmlFor="class-names">Tailwind Classes</Label>
             <Textarea
               id="class-names"
@@ -75,10 +75,10 @@ export function EditorPanel({ element, onClose, onUpdate }: EditorPanelProps) {
               onChange={(e) => setClassNames(e.target.value)}
               rows={4}
               disabled={isUpdating}
-              className="font-mono"
+              className="font-mono text-xs"
             />
-            <Button size="sm" onClick={() => handleUpdate(`Replace the classes with: "${classNames}"`)} disabled={isUpdating}>
-               {isUpdating ? <LoaderCircle className="animate-spin mr-2" /> : null}
+            <Button size="sm" onClick={() => handleUpdate(`Replace the classes with: "${classNames}"`)} disabled={isUpdating} className="w-full">
+               {isUpdating ? <LoaderCircle className="animate-spin" /> : <Brush />}
                Update Classes
             </Button>
           </div>

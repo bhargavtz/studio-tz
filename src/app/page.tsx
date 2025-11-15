@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useTransition } from 'react';
+import { useState, useEffect, useCallback, useTransition, useRef } from 'react';
 import { Header } from '@/components/layout/header';
 import { ChatPanel } from '@/components/chat/chat-panel';
 import { PreviewPanel } from '@/components/preview/preview-panel';
@@ -9,19 +9,20 @@ import { type Message } from '@/components/chat/chat-message';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CodeBlock } from '@/components/ui/code-block';
-
 import { generateHtmlFromPrompt } from '@/ai/flows/generate-html-from-prompt';
 import { updateCodeWithAIDiff } from '@/ai/flows/update-code-with-ai-diff';
 
-const initialHtml = `<div class="bg-gray-50 dark:bg-gray-900 min-h-screen flex items-center justify-center font-body">
-  <div class="text-center p-8">
-    <h1 class="text-5xl font-bold font-headline text-gray-800 dark:text-white mb-4">Welcome to WebForgeAI</h1>
-    <p class="text-xl text-gray-600 dark:text-gray-300">
-      Tell me what you want to build in the chat on the left.
+const initialHtml = `<div class="bg-gray-900 text-white font-sans">
+  <div class="container mx-auto px-4 py-20 text-center">
+    <h1 class="text-5xl font-bold font-headline text-white mb-4">Build Your Website with AI</h1>
+    <p class="text-xl text-gray-300 max-w-2xl mx-auto">
+      Describe the website you want to build in the chat, and I'll generate the code for you. Click on any element in the preview to edit it.
     </p>
-    <p class="text-sm text-gray-400 mt-8">
-      For example: "Create a hero section with a title, a subtitle, and a call-to-action button."
-    </p>
+    <div class="mt-8">
+      <button class="bg-primary text-primary-foreground font-bold py-3 px-8 rounded-lg text-lg hover:bg-primary/80 transition-colors">
+        Get Started Now
+      </button>
+    </div>
   </div>
 </div>`;
 const initialCss = `/* Custom styles can go here */`;
@@ -128,13 +129,19 @@ Based on this, generate new, complete HTML code with Tailwind classes. The user 
   };
 
   const handleMessage = useCallback((event: MessageEvent) => {
-    if (event.source !== event.currentTarget) { // Ensure message is from iframe
-        const { type, ...data } = event.data;
-        if (type === 'webforge-select') {
-          setSelectedElement(data as SelectedElement);
-        }
+    // Basic security: check the origin of the message
+    // In a real app, you'd want to make this more secure, e.g., event.origin === 'your-iframe-origin'
+    if (event.source !== iframeRef.current?.contentWindow) {
+      return;
+    }
+    
+    const { type, ...data } = event.data;
+    if (type === 'webforge-select') {
+      setSelectedElement(data as SelectedElement);
     }
   }, []);
+
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
     window.addEventListener('message', handleMessage);
@@ -146,15 +153,15 @@ Based on this, generate new, complete HTML code with Tailwind classes. The user 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">
       <Header htmlContent={htmlContent} cssContent={cssContent} jsContent={jsContent} />
-      <main className="grid flex-1 pt-16 grid-cols-3 xl:grid-cols-4">
-        <div className="col-span-1 border-r flex flex-col min-w-[350px]">
+      <main className="grid flex-1 pt-16 grid-cols-1 md:grid-cols-3 xl:grid-cols-4">
+        <div className="col-span-1 border-r flex flex-col min-w-[300px] md:min-w-[350px]">
           <ChatPanel
             messages={messages}
             isLoading={isPending}
             onSubmit={handleChatSubmit}
           />
         </div>
-        <div className="relative col-span-2 xl:col-span-3">
+        <div className="relative col-span-1 md:col-span-2 xl:col-span-3">
             <Tabs defaultValue="preview" className="h-full w-full flex flex-col">
                 <div className="p-2 border-b">
                     <TabsList>
@@ -164,6 +171,7 @@ Based on this, generate new, complete HTML code with Tailwind classes. The user 
                 </div>
                 <TabsContent value="preview" className="flex-1 overflow-auto">
                     <PreviewPanel
+                        ref={iframeRef}
                         htmlContent={htmlContent}
                         cssContent={cssContent}
                         jsContent={jsContent}
@@ -176,9 +184,9 @@ Based on this, generate new, complete HTML code with Tailwind classes. The user 
 
             {selectedElement && (
                 <EditorPanel
-                element={selectedElement}
-                onClose={() => setSelectedElement(null)}
-                onUpdate={handleElementUpdate}
+                  element={selectedElement}
+                  onClose={() => setSelectedElement(null)}
+                  onUpdate={handleElementUpdate}
                 />
             )}
         </div>

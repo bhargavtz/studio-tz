@@ -13,16 +13,22 @@ type ChatPanelProps = {
 
 export function ChatPanel({ messages, isLoading, onSubmit }: ChatPanelProps) {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
+    const viewport = viewportRef.current;
+    if (viewport) {
+      viewport.scrollTop = viewport.scrollHeight;
     }
   }, [messages]);
 
   return (
     <div className="flex h-full flex-col bg-card">
-      <ScrollArea className="flex-1" ref={scrollAreaRef}>
+        <div className="p-4 border-b">
+            <h2 className="font-headline text-lg font-semibold">Chat with AI</h2>
+            <p className="text-sm text-muted-foreground">Describe what you want to build or change.</p>
+        </div>
+      <ScrollArea className="flex-1" viewportRef={viewportRef}>
         <div className="space-y-6 p-4">
             {messages.map((msg, i) => (
                 <ChatMessage key={i} message={msg} />
