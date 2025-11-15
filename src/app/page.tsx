@@ -11,28 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CodeBlock } from '@/components/ui/code-block';
 import { generateHtmlFromPrompt } from '@/ai/flows/generate-html-from-prompt';
 import { updateCodeWithAIDiff } from '@/ai/flows/update-code-with-ai-diff';
-
-const initialHtml = `<div class="bg-gray-900 text-white font-sans">
-  <div class="container mx-auto px-4 py-20 text-center">
-    <h1 class="text-5xl font-bold font-headline text-white mb-4">Build Your Website with AI</h1>
-    <p class="text-xl text-gray-300 max-w-2xl mx-auto">
-      Describe the website you want to build in the chat, and I'll generate the code for you. Click on any element in the preview to edit it.
-    </p>
-    <div class="mt-8">
-      <button class="bg-primary text-primary-foreground font-bold py-3 px-8 rounded-lg text-lg hover:bg-primary/80 transition-colors">
-        Get Started Now
-      </button>
-    </div>
-  </div>
-</div>`;
-const initialCss = `/* Custom styles can go here */`;
-const initialJs = `console.log("Welcome to your WebForgeAI project!");`;
-const initialMessages: Message[] = [
-  {
-    role: 'assistant',
-    content: "Hello! I'm WebForgeAI. How can I help you build your website today?",
-  },
-];
+import { initialHtml, initialCss, initialJs, initialMessages } from '@/lib/initial-content';
 
 export type SelectedElement = {
   path: number[];
@@ -58,14 +37,14 @@ export default function Home() {
 
     startTransition(async () => {
       try {
-        const fullPrompt = `The user wants to update their website.
-Current HTML:
+        const fullPrompt = `You are a web developer creating a single HTML page using Tailwind CSS. The user wants to update their website based on their request.
+Current HTML content:
 ---
 ${htmlContent}
 ---
 User request: "${prompt}"
 
-Based on this, generate new, complete HTML code with Tailwind classes. The user might be asking for a new component or a modification of the existing code. Your goal is to provide a single, coherent HTML body that reflects their request.`;
+Your task is to generate the new, complete, and valid HTML code for the body of the page. Do NOT wrap the code in a markdown block. The output must be a single block of HTML code that replaces the previous content entirely.`;
 
         const response = await generateHtmlFromPrompt({ prompt: fullPrompt });
         
@@ -154,14 +133,14 @@ Based on this, generate new, complete HTML code with Tailwind classes. The user 
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">
       <Header htmlContent={htmlContent} cssContent={cssContent} jsContent={jsContent} />
       <main className="grid flex-1 pt-16 grid-cols-1 md:grid-cols-3 xl:grid-cols-4">
-        <div className="col-span-1 border-r flex flex-col min-w-[300px] md:min-w-[350px]">
+        <div className="col-span-1 border-r flex flex-col min-w-[300px] md:min-w-[350px] h-full">
           <ChatPanel
             messages={messages}
             isLoading={isPending}
             onSubmit={handleChatSubmit}
           />
         </div>
-        <div className="relative col-span-1 md:col-span-2 xl:col-span-3">
+        <div className="relative col-span-1 md:col-span-2 xl:col-span-3 h-full flex flex-col">
             <Tabs defaultValue="preview" className="h-full w-full flex flex-col">
                 <div className="p-2 border-b">
                     <TabsList>

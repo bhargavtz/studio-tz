@@ -25,9 +25,9 @@ export function CodeBlock({ code, language = 'html' }: CodeBlockProps) {
   };
 
   return (
-    <div className="relative h-full rounded-md bg-gray-900 font-code text-sm">
-      <div className="absolute top-2 right-2">
-        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-white hover:bg-gray-700" onClick={copyToClipboard}>
+    <div className="relative h-full rounded-md bg-gray-950 font-code text-sm">
+      <div className="absolute top-2 right-2 z-10">
+        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-white hover:bg-gray-800" onClick={copyToClipboard}>
           {hasCopied ? <Check className="h-4 w-4" /> : <Clipboard className="h-4 w-4" />}
           <span className="sr-only">Copy code</span>
         </Button>
