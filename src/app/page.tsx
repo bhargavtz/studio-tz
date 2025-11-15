@@ -7,6 +7,8 @@ import { PreviewPanel } from '@/components/preview/preview-panel';
 import { EditorPanel } from '@/components/editor/editor-panel';
 import { type Message } from '@/components/chat/chat-message';
 import { useToast } from '@/hooks/use-toast';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CodeBlock } from '@/components/ui/code-block';
 
 import { generateHtmlFromPrompt } from '@/ai/flows/generate-html-from-prompt';
 import { updateCodeWithAIDiff } from '@/ai/flows/update-code-with-ai-diff';
@@ -153,18 +155,32 @@ Based on this, generate new, complete HTML code with Tailwind classes. The user 
           />
         </div>
         <div className="relative col-span-2 xl:col-span-3">
-          <PreviewPanel
-            htmlContent={htmlContent}
-            cssContent={cssContent}
-            jsContent={jsContent}
-          />
-          {selectedElement && (
-            <EditorPanel
-              element={selectedElement}
-              onClose={() => setSelectedElement(null)}
-              onUpdate={handleElementUpdate}
-            />
-          )}
+            <Tabs defaultValue="preview" className="h-full w-full flex flex-col">
+                <div className="p-2 border-b">
+                    <TabsList>
+                        <TabsTrigger value="preview">Preview</TabsTrigger>
+                        <TabsTrigger value="code">Code</TabsTrigger>
+                    </TabsList>
+                </div>
+                <TabsContent value="preview" className="flex-1 overflow-auto">
+                    <PreviewPanel
+                        htmlContent={htmlContent}
+                        cssContent={cssContent}
+                        jsContent={jsContent}
+                    />
+                </TabsContent>
+                <TabsContent value="code" className="flex-1 overflow-auto bg-gray-950">
+                   <CodeBlock code={htmlContent} language="html" />
+                </TabsContent>
+            </Tabs>
+
+            {selectedElement && (
+                <EditorPanel
+                element={selectedElement}
+                onClose={() => setSelectedElement(null)}
+                onUpdate={handleElementUpdate}
+                />
+            )}
         </div>
       </main>
     </div>
