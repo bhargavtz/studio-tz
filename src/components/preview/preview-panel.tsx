@@ -67,7 +67,7 @@ export function PreviewPanel({ htmlContent, cssContent, jsContent }: PreviewPane
     if (!iframeRef.current) return;
     const iframe = iframeRef.current;
     
-    const fullHtml = \`
+    const fullHtml = `
       <!DOCTYPE html>
       <html lang="en">
       <head>
@@ -94,16 +94,16 @@ export function PreviewPanel({ htmlContent, cssContent, jsContent }: PreviewPane
             body { 
                 font-family: 'Inter', sans-serif;
             }
-            \${cssContent}
+            ${cssContent}
         </style>
         <script>${jsContent}</script>
         <script>${interactionScript}</script>
       </head>
       <body>
-        \${htmlContent}
+        ${htmlContent}
       </body>
       </html>
-    \`;
+    `;
 
     iframe.srcdoc = fullHtml;
 
