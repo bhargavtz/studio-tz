@@ -21,6 +21,6 @@ export const initialJs = `console.log("Welcome to your WebForgeAI project!");`;
 export const initialMessages: Message[] = [
   {
     role: 'assistant',
-    content: "Hi, I'm WebForgeAI. Tell me what kind of website you want (for example, an ecommerce store like Amazon or a portfolio). I'll think through the structure, pages and interactions, then generate working HTML, Tailwind CSS and JavaScript for you.",
+    content: "Hi, I'm WebForgeAI. Describe the experience you want (e.g., SaaS landing, ecommerce, portfolio) and I'll design it with responsive HTML, Tailwind CSS layers, and interactive JavaScript or Vue 3 components. Want playful micro-interactions or premium motion? Just say so and I'll weave in tasteful animations, gradients, and effects.",
   },
 ];

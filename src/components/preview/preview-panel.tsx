@@ -120,6 +120,7 @@ export const PreviewPanel = forwardRef<HTMLIFrameElement, PreviewPanelProps>(({ 
             }
             ${cssContent}
         </style>
+        <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
         <script>${interactionScript}</script>
       </head>
       <body>
@@ -168,18 +169,20 @@ export const PreviewPanel = forwardRef<HTMLIFrameElement, PreviewPanelProps>(({ 
   }, [isSelectMode]);
 
   return (
-    <div className="relative h-full w-full bg-background shadow-inner overflow-auto">
-      <iframe
-        ref={localRef}
-        title="Live Preview"
-        className="w-full border-0"
-        style={{ height: iframeHeight }}
-        sandbox="allow-scripts allow-same-origin"
-      />
+    <div className="relative h-full w-full bg-background shadow-inner">
+      <div className="h-full w-full overflow-auto pr-2 pb-16">
+        <iframe
+          ref={localRef}
+          title="Live Preview"
+          className="w-full border-0"
+          style={{ height: iframeHeight, minHeight: '100%' }}
+          sandbox="allow-scripts allow-same-origin"
+        />
+      </div>
       <button
         type="button"
         onClick={onToggleSelectMode}
-        className={`absolute bottom-3 right-3 flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium shadow-md transition-colors ${
+        className={`absolute bottom-4 right-4 flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold shadow-lg transition-colors ${
           isSelectMode
             ? 'bg-primary text-primary-foreground'
             : 'bg-gray-900/80 text-gray-100 border border-gray-700 hover:bg-gray-800/90'

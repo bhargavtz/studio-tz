@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useTransition, useRef } from 'react';
+import { useState, useEffect, useCallback, useTransition, useRef, useMemo } from 'react';
 import { Header } from '@/components/layout/header';
 import { ChatPanel } from '@/components/chat/chat-panel';
 import { PreviewPanel } from '@/components/preview/preview-panel';
@@ -13,6 +13,9 @@ import { generateHtmlFromPrompt } from '@/ai/flows/generate-html-from-prompt';
 import { updateCodeWithAIDiff } from '@/ai/flows/update-code-with-ai-diff';
 import { initialHtml, initialCss, initialJs, initialMessages } from '@/lib/initial-content';
 import { formatHtml, extractBodyContent } from '@/lib/utils';
+import { mutateHtmlByPath } from '@/lib/html-editor';
+import { Button } from '@/components/ui/button';
+import { RotateCw, Undo2, Redo2 } from 'lucide-react';
 
 export type SelectedElement = {
   path: number[];
@@ -20,6 +23,29 @@ export type SelectedElement = {
   textContent: string;
   classNames: string;
 };
+
+export type ElementStyleProperty =
+  | 'width'
+  | 'height'
+  | 'padding'
+  | 'margin'
+  | 'backgroundColor'
+  | 'color'
+  | 'borderRadius'
+  | 'opacity'
+  | 'fontSize'
+  | 'fontWeight'
+  | 'lineHeight'
+  | 'letterSpacing';
+
+type PresetStyle = 'gradient' | 'shadow' | 'border' | 'glass' | 'pill' | 'hover';
+
+export type ElementMutation =
+  | { type: 'text'; value: string }
+  | { type: 'classes'; value: string }
+  | { type: 'style'; property: ElementStyleProperty; value: string }
+  | { type: 'align'; value: 'left' | 'center' | 'right' }
+  | { type: 'preset'; value: PresetStyle };
 
 export default function Home() {
   const [isPending, startTransition] = useTransition();
@@ -32,6 +58,36 @@ export default function Home() {
   const [selectedElement, setSelectedElement] = useState<SelectedElement | null>(null);
   const [activeFile, setActiveFile] = useState<'html' | 'css' | 'js'>('html');
   const [isSelectMode, setIsSelectMode] = useState(false);
+
+  const [history, setHistory] = useState<string[]>([initialHtml]);
+  const [historyIndex, setHistoryIndex] = useState(0);
+
+  const canUndo = historyIndex > 0;
+  const canRedo = historyIndex < history.length - 1;
+
+  const pushHistory = useCallback((nextHtml: string) => {
+    setHistory((prev) => {
+      const truncated = prev.slice(0, historyIndex + 1);
+      return [...truncated, nextHtml];
+    });
+    setHistoryIndex((prev) => prev + 1);
+  }, [historyIndex]);
+
+  const handleUndo = useCallback(() => {
+    if (!canUndo) return;
+    setHistoryIndex((prev) => prev - 1);
+    setHtmlContent(history[historyIndex - 1]);
+  }, [canUndo, history, historyIndex]);
+
+  const handleRedo = useCallback(() => {
+    if (!canRedo) return;
+    setHistoryIndex((prev) => prev + 1);
+    setHtmlContent(history[historyIndex + 1]);
+  }, [canRedo, history, historyIndex]);
+
+  const handleRefreshPreview = useCallback(() => {
+    setHtmlContent((prev) => `${prev}`);
+  }, []);
 
   const handleChatSubmit = (prompt: string) => {
     const newMessages: Message[] = [...messages, { role: 'user', content: prompt }];
@@ -54,6 +110,7 @@ Think carefully about the overall website structure (sections, navigation, inter
         if (response.html) {
           const normalizedHtml = extractBodyContent(response.html);
           setHtmlContent(normalizedHtml);
+          pushHistory(normalizedHtml);
           if (typeof response.css === 'string') {
             setCssContent(response.css);
           }
@@ -120,39 +177,90 @@ Think carefully about the overall website structure (sections, navigation, inter
     });
   };
   
-  const handleElementUpdate = (path: number[], instruction: string) => {
-    if (!path) return;
+  const handleElementUpdate = useCallback((path: number[], mutation: ElementMutation) => {
+    if (!path || !mutation) return;
 
-    startTransition(async () => {
-      try {
-        const response = await updateCodeWithAIDiff({
-          fileType: 'html',
-          fileContent: htmlContent,
-          instructions: instruction,
-          elementDetails: `The element to modify can be found using this JS path from document.body: ${path.reduce((acc, index) => `${acc}.children[${index}]`, 'document.body')}`
-        });
-        
-        if (response.updatedFileContent) {
-          setHtmlContent(response.updatedFileContent);
-          toast({
-            title: 'Element Updated',
-            description: 'The HTML has been updated successfully.',
-          });
-          setSelectedElement(null);
-        } else {
-            throw new Error('AI did not return updated HTML.');
+    const applyStyle = (node: HTMLElement, property: ElementStyleProperty, value: string) => {
+      if (!value) return;
+      if (property === 'opacity') {
+        const numeric = Number(value);
+        if (!Number.isNaN(numeric)) {
+          node.style.opacity = Math.max(0, Math.min(1, numeric / 100)).toString();
         }
-
-      } catch (error) {
-        console.error('AI Update Error:', error);
-        toast({
-          variant: 'destructive',
-          title: 'Update Failed',
-          description: 'Failed to update the element. Please try again.',
-        });
+        return;
       }
+
+      (node.style as CSSStyleDeclaration & Record<string, string | undefined>)[property] = value;
+    };
+
+    const applyPreset = (node: HTMLElement, preset: PresetStyle) => {
+      switch (preset) {
+        case 'gradient':
+          node.style.backgroundImage = 'linear-gradient(135deg, #6366f1 0%, #ec4899 100%)';
+          node.style.color = '#fff';
+          node.style.border = 'none';
+          node.style.borderRadius = node.style.borderRadius || '9999px';
+          break;
+        case 'shadow':
+          node.style.boxShadow = '0 20px 45px rgba(15, 23, 42, 0.35)';
+          break;
+        case 'border':
+          node.style.border = '1px solid rgba(148, 163, 184, 0.5)';
+          node.style.borderRadius = node.style.borderRadius || '16px';
+          break;
+        case 'glass':
+          node.style.backgroundColor = 'rgba(15, 23, 42, 0.6)';
+          node.style.border = '1px solid rgba(255, 255, 255, 0.2)';
+          node.style.backdropFilter = 'blur(16px)';
+          node.style.borderRadius = '24px';
+          break;
+        case 'pill':
+          node.style.borderRadius = '9999px';
+          node.style.padding = node.style.padding || '0.75rem 1.5rem';
+          break;
+        case 'hover':
+          node.style.transition = 'transform 200ms ease, box-shadow 200ms ease';
+          node.style.transformOrigin = 'center';
+          node.onmouseenter = () => {
+            node.style.transform = 'scale(1.02)';
+            node.style.boxShadow = '0 20px 45px rgba(15, 23, 42, 0.3)';
+          };
+          node.onmouseleave = () => {
+            node.style.transform = 'scale(1)';
+            node.style.boxShadow = 'none';
+          };
+          break;
+        default:
+          break;
+      }
+    };
+
+    setHtmlContent((prev) => {
+      const next = mutateHtmlByPath(prev, path, (node) => {
+        switch (mutation.type) {
+          case 'text':
+            node.textContent = mutation.value;
+            break;
+          case 'classes':
+            node.className = mutation.value;
+            break;
+          case 'style':
+            applyStyle(node, mutation.property, mutation.value);
+            break;
+          case 'align':
+            node.style.textAlign = mutation.value;
+            break;
+          case 'preset':
+            applyPreset(node, mutation.value);
+            break;
+          default:
+            break;
+        }
+      });
+      pushHistory(next);
+      return next;
     });
-  };
+  }, [pushHistory]);
 
   const handleMessage = useCallback((event: MessageEvent) => {
     // Basic security: check the origin of the message
@@ -200,11 +308,22 @@ Think carefully about the overall website structure (sections, navigation, inter
         </div>
         <div className="relative col-span-1 md:col-span-2 xl:col-span-3 h-full flex flex-col min-h-0">
             <Tabs defaultValue="preview" className="flex flex-col flex-1 min-h-0 w-full">
-                <div className="p-2 border-b">
+                <div className="flex items-center justify-between p-2 border-b gap-2">
                     <TabsList>
                         <TabsTrigger value="preview">Preview</TabsTrigger>
                         <TabsTrigger value="code">Code</TabsTrigger>
                     </TabsList>
+                    <div className="flex items-center gap-2">
+                      <Button variant="ghost" size="icon" onClick={handleUndo} disabled={!canUndo} title="Undo">
+                        <Undo2 className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={handleRedo} disabled={!canRedo} title="Redo">
+                        <Redo2 className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={handleRefreshPreview} title="Refresh preview">
+                        <RotateCw className="h-4 w-4" />
+                      </Button>
+                    </div>
                 </div>
                 <TabsContent value="preview" className="flex-1 min-h-0 overflow-auto">
                     <PreviewPanel

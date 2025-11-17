@@ -1,3 +1,5 @@
+"use client";
+
 export type ElementMutator = (element: HTMLElement) => void;
 
 export function mutateHtmlByPath(html: string, path: number[], mutator: ElementMutator): string {
@@ -5,8 +7,17 @@ export function mutateHtmlByPath(html: string, path: number[], mutator: ElementM
     return html;
   }
 
+  if (typeof window === 'undefined') {
+    console.warn('mutateHtmlByPath called on server');
+    return html;
+  }
+
   try {
-    const parser = new DOMParser();
+    const ParserCtor = window.DOMParser ?? DOMParser;
+    if (!ParserCtor) {
+      return html;
+    }
+    const parser = new ParserCtor();
     const doc = parser.parseFromString(`<body>${html}</body>`, 'text/html');
     let current: Element | null = doc.body;
 

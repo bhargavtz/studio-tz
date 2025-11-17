@@ -5,14 +5,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { type SelectedElement } from '@/app/page';
+import { type ElementMutation, type ElementStyleProperty, type SelectedElement } from '@/app/page';
 import { useEffect, useState, useTransition } from 'react';
 import { X, LoaderCircle, WrapText, Brush, Ruler, Palette, Type, AlignLeft, AlignCenter, AlignRight, Sparkles } from 'lucide-react';
 
 type EditorPanelProps = {
   element: SelectedElement | null;
   onClose: () => void;
-  onUpdate: (path: number[], instruction: string) => void;
+  onUpdate: (path: number[], mutation: ElementMutation) => void;
 };
 
 export function EditorPanel({ element, onClose, onUpdate }: EditorPanelProps) {
@@ -41,17 +41,16 @@ export function EditorPanel({ element, onClose, onUpdate }: EditorPanelProps) {
 
   if (!element) return null;
 
-  const handleUpdate = (instruction: string) => {
+  const sendMutation = (mutation: ElementMutation | null) => {
+    if (!mutation || !element.path) return;
     startTransition(() => {
-      if (element.path) {
-        onUpdate(element.path, instruction);
-      }
+      onUpdate(element.path!, mutation);
     });
   };
 
-  const handleQuickUpdate = (instruction: string) => {
-    if (!instruction.trim()) return;
-    handleUpdate(instruction);
+  const handleStyleMutation = (property: ElementStyleProperty, value: string) => {
+    if (!value.trim()) return;
+    sendMutation({ type: 'style', property, value });
   };
 
   const isUpdating = isPending;
@@ -79,7 +78,7 @@ export function EditorPanel({ element, onClose, onUpdate }: EditorPanelProps) {
               rows={3}
               disabled={isUpdating}
             />
-             <Button size="sm" onClick={() => handleUpdate(`Change the text content to: "${textContent}"`)} disabled={isUpdating} className="w-full">
+             <Button size="sm" onClick={() => sendMutation({ type: 'text', value: textContent })} disabled={isUpdating || !textContent.trim()} className="w-full">
                 {isUpdating ? <LoaderCircle className="animate-spin" /> : <WrapText />}
                 Update Text
              </Button>
@@ -94,7 +93,7 @@ export function EditorPanel({ element, onClose, onUpdate }: EditorPanelProps) {
               disabled={isUpdating}
               className="font-mono text-xs"
             />
-            <Button size="sm" onClick={() => handleUpdate(`Replace the classes with: "${classNames}"`)} disabled={isUpdating} className="w-full">
+            <Button size="sm" onClick={() => sendMutation({ type: 'classes', value: classNames })} disabled={isUpdating || !classNames.trim()} className="w-full">
                {isUpdating ? <LoaderCircle className="animate-spin" /> : <Brush />}
                Update Classes
             </Button>
@@ -124,10 +123,10 @@ export function EditorPanel({ element, onClose, onUpdate }: EditorPanelProps) {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <Button variant="secondary" size="sm" disabled={!width || isUpdating} onClick={() => handleQuickUpdate(`Set the selected element's width to ${width}.`)}>Apply width</Button>
-              <Button variant="secondary" size="sm" disabled={!height || isUpdating} onClick={() => handleQuickUpdate(`Set the selected element's height to ${height}.`)}>Apply height</Button>
-              <Button variant="secondary" size="sm" disabled={!padding || isUpdating} onClick={() => handleQuickUpdate(`Update the padding of the selected element to ${padding}.`)}>Apply padding</Button>
-              <Button variant="secondary" size="sm" disabled={!margin || isUpdating} onClick={() => handleQuickUpdate(`Update the margin of the selected element to ${margin}.`)}>Apply margin</Button>
+              <Button variant="secondary" size="sm" disabled={!width.trim() || isUpdating} onClick={() => handleStyleMutation('width', width)}>Apply width</Button>
+              <Button variant="secondary" size="sm" disabled={!height.trim() || isUpdating} onClick={() => handleStyleMutation('height', height)}>Apply height</Button>
+              <Button variant="secondary" size="sm" disabled={!padding.trim() || isUpdating} onClick={() => handleStyleMutation('padding', padding)}>Apply padding</Button>
+              <Button variant="secondary" size="sm" disabled={!margin.trim() || isUpdating} onClick={() => handleStyleMutation('margin', margin)}>Apply margin</Button>
             </div>
           </div>
 
@@ -156,10 +155,10 @@ export function EditorPanel({ element, onClose, onUpdate }: EditorPanelProps) {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <Button variant="secondary" size="sm" disabled={isUpdating} onClick={() => handleQuickUpdate(`Set the selected element's background color to ${bgColor}.`)}>Background</Button>
-              <Button variant="secondary" size="sm" disabled={isUpdating} onClick={() => handleQuickUpdate(`Set the selected element's text color to ${textColor}.`)}>Text color</Button>
-              <Button variant="secondary" size="sm" disabled={!borderRadius || isUpdating} onClick={() => handleQuickUpdate(`Apply a border radius of ${borderRadius} to the selected element.`)}>Corner radius</Button>
-              <Button variant="secondary" size="sm" disabled={isUpdating} onClick={() => handleQuickUpdate(`Set the opacity of the selected element to ${opacity}%.`)}>Opacity</Button>
+              <Button variant="secondary" size="sm" disabled={isUpdating} onClick={() => handleStyleMutation('backgroundColor', bgColor)}>Background</Button>
+              <Button variant="secondary" size="sm" disabled={isUpdating} onClick={() => handleStyleMutation('color', textColor)}>Text color</Button>
+              <Button variant="secondary" size="sm" disabled={!borderRadius.trim() || isUpdating} onClick={() => handleStyleMutation('borderRadius', borderRadius)}>Corner radius</Button>
+              <Button variant="secondary" size="sm" disabled={!opacity || isUpdating} onClick={() => handleStyleMutation('opacity', opacity)}>Opacity</Button>
             </div>
           </div>
 
@@ -188,17 +187,17 @@ export function EditorPanel({ element, onClose, onUpdate }: EditorPanelProps) {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <Button variant="secondary" size="sm" disabled={!fontSize || isUpdating} onClick={() => handleQuickUpdate(`Set the font size of the selected element to ${fontSize}.`)}>Apply font size</Button>
-              <Button variant="secondary" size="sm" disabled={!fontWeight || isUpdating} onClick={() => handleQuickUpdate(`Set the font weight of the selected element to ${fontWeight}.`)}>Apply weight</Button>
-              <Button variant="secondary" size="sm" disabled={!lineHeight || isUpdating} onClick={() => handleQuickUpdate(`Update the line height to ${lineHeight}.`)}>Line height</Button>
-              <Button variant="secondary" size="sm" disabled={!letterSpacing || isUpdating} onClick={() => handleQuickUpdate(`Update the letter spacing to ${letterSpacing}.`)}>Letter spacing</Button>
+              <Button variant="secondary" size="sm" disabled={!fontSize.trim() || isUpdating} onClick={() => handleStyleMutation('fontSize', fontSize)}>Apply font size</Button>
+              <Button variant="secondary" size="sm" disabled={!fontWeight.trim() || isUpdating} onClick={() => handleStyleMutation('fontWeight', fontWeight)}>Apply weight</Button>
+              <Button variant="secondary" size="sm" disabled={!lineHeight.trim() || isUpdating} onClick={() => handleStyleMutation('lineHeight', lineHeight)}>Line height</Button>
+              <Button variant="secondary" size="sm" disabled={!letterSpacing.trim() || isUpdating} onClick={() => handleStyleMutation('letterSpacing', letterSpacing)}>Letter spacing</Button>
             </div>
             <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
               <span>Alignment</span>
               <div className="flex gap-2">
-                <Button type="button" variant="ghost" size="icon" disabled={isUpdating} onClick={() => handleQuickUpdate('Align the text/content of the selected element to the left.')}> <AlignLeft className="h-4 w-4" /> </Button>
-                <Button type="button" variant="ghost" size="icon" disabled={isUpdating} onClick={() => handleQuickUpdate('Center the text/content of the selected element.')}> <AlignCenter className="h-4 w-4" /> </Button>
-                <Button type="button" variant="ghost" size="icon" disabled={isUpdating} onClick={() => handleQuickUpdate('Align the text/content of the selected element to the right.')}> <AlignRight className="h-4 w-4" /> </Button>
+                <Button type="button" variant="ghost" size="icon" disabled={isUpdating} onClick={() => sendMutation({ type: 'align', value: 'left' })}> <AlignLeft className="h-4 w-4" /> </Button>
+                <Button type="button" variant="ghost" size="icon" disabled={isUpdating} onClick={() => sendMutation({ type: 'align', value: 'center' })}> <AlignCenter className="h-4 w-4" /> </Button>
+                <Button type="button" variant="ghost" size="icon" disabled={isUpdating} onClick={() => sendMutation({ type: 'align', value: 'right' })}> <AlignRight className="h-4 w-4" /> </Button>
               </div>
             </div>
           </div>
@@ -208,12 +207,12 @@ export function EditorPanel({ element, onClose, onUpdate }: EditorPanelProps) {
               <Sparkles className="h-4 w-4" /> Quick styling
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <Button variant="secondary" size="sm" disabled={isUpdating} onClick={() => handleQuickUpdate('Apply a modern gradient background to the selected element (e.g., from #6366f1 to #ec4899).')}>Gradient bg</Button>
-              <Button variant="secondary" size="sm" disabled={isUpdating} onClick={() => handleQuickUpdate('Add a soft drop shadow to the selected element for elevation.')}>Drop shadow</Button>
-              <Button variant="secondary" size="sm" disabled={isUpdating} onClick={() => handleQuickUpdate('Add a subtle border (1px) with 20% opacity to define the element.')}>Border</Button>
-              <Button variant="secondary" size="sm" disabled={isUpdating} onClick={() => handleQuickUpdate('Apply a glassmorphism effect (transparent background, blur, border) to the selected element.')}>Glass effect</Button>
-              <Button variant="secondary" size="sm" disabled={isUpdating} onClick={() => handleQuickUpdate('Make the selected element pill-shaped with generous rounding and balanced padding.')}>Pill shape</Button>
-              <Button variant="secondary" size="sm" disabled={isUpdating} onClick={() => handleQuickUpdate('Animate this element with a gentle hover scale and shadow transition.')}>Hover animate</Button>
+              <Button variant="secondary" size="sm" disabled={isUpdating} onClick={() => sendMutation({ type: 'preset', value: 'gradient' })}>Gradient bg</Button>
+              <Button variant="secondary" size="sm" disabled={isUpdating} onClick={() => sendMutation({ type: 'preset', value: 'shadow' })}>Drop shadow</Button>
+              <Button variant="secondary" size="sm" disabled={isUpdating} onClick={() => sendMutation({ type: 'preset', value: 'border' })}>Border</Button>
+              <Button variant="secondary" size="sm" disabled={isUpdating} onClick={() => sendMutation({ type: 'preset', value: 'glass' })}>Glass effect</Button>
+              <Button variant="secondary" size="sm" disabled={isUpdating} onClick={() => sendMutation({ type: 'preset', value: 'pill' })}>Pill shape</Button>
+              <Button variant="secondary" size="sm" disabled={isUpdating} onClick={() => sendMutation({ type: 'preset', value: 'hover' })}>Hover animate</Button>
             </div>
           </div>
         </CardContent>
