@@ -1,11 +1,13 @@
-'use client';
+"use client";
 
-import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 
 type PreviewPanelProps = {
   htmlContent: string;
   cssContent: string;
   jsContent: string;
+  isSelectMode: boolean;
+  onToggleSelectMode: () => void;
 };
 
 // This script will be injected into the iframe to handle interactions.
@@ -19,7 +21,24 @@ document.addEventListener('DOMContentLoaded', () => {
   document.head.appendChild(style);
 
   let lastHovered = null;
+  let selectionEnabled = false;
+
+  window.addEventListener('message', (event) => {
+    const data = event.data || {};
+    if (data.type === 'webforge-select-mode') {
+      selectionEnabled = !!data.enabled;
+      if (!selectionEnabled && lastHovered) {
+        if (lastHovered.removeAttribute) {
+          lastHovered.removeAttribute('data-webforge-hover');
+          lastHovered.removeAttribute('data-webforge-selected');
+        }
+        lastHovered = null;
+      }
+    }
+  });
+
   document.body.addEventListener('mouseover', (e) => {
+    if (!selectionEnabled) return;
     if (e.target === document.body || !e.target.tagName) return;
     if (lastHovered) lastHovered.removeAttribute('data-webforge-hover');
     e.target.setAttribute('data-webforge-hover', 'true');
@@ -31,6 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.body.addEventListener('click', (e) => {
+      if (!selectionEnabled) return;
       e.preventDefault();
       e.stopPropagation();
 
@@ -60,9 +80,10 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 `;
 
-export const PreviewPanel = forwardRef<HTMLIFrameElement, PreviewPanelProps>(({ htmlContent, cssContent, jsContent }, ref) => {
+export const PreviewPanel = forwardRef<HTMLIFrameElement, PreviewPanelProps>(({ htmlContent, cssContent, jsContent, isSelectMode, onToggleSelectMode }, ref) => {
   const localRef = useRef<HTMLIFrameElement>(null);
   useImperativeHandle(ref, () => localRef.current!);
+  const [iframeHeight, setIframeHeight] = useState('100%');
 
 
   useEffect(() => {
@@ -110,16 +131,67 @@ export const PreviewPanel = forwardRef<HTMLIFrameElement, PreviewPanelProps>(({ 
 
     iframe.srcdoc = fullHtml;
 
+    const updateHeight = () => {
+      try {
+        const doc = iframe.contentDocument;
+        if (doc) {
+          const bodyHeight = doc.body.scrollHeight;
+          if (bodyHeight) {
+            setIframeHeight(`${bodyHeight}px`);
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to read iframe height', err);
+      }
+    };
+
+    iframe.addEventListener('load', updateHeight);
+    requestAnimationFrame(updateHeight);
+
+    return () => {
+      iframe.removeEventListener('load', updateHeight);
+    };
+
   }, [htmlContent, cssContent, jsContent]);
 
+  useEffect(() => {
+    const iframe = localRef.current;
+    if (!iframe || !iframe.contentWindow) return;
+
+    iframe.contentWindow.postMessage(
+      {
+        type: 'webforge-select-mode',
+        enabled: isSelectMode,
+      },
+      '*'
+    );
+  }, [isSelectMode]);
+
   return (
-    <div className="relative h-full w-full bg-background shadow-inner">
+    <div className="relative h-full w-full bg-background shadow-inner overflow-auto">
       <iframe
         ref={localRef}
         title="Live Preview"
-        className="h-full w-full border-0"
+        className="w-full border-0"
+        style={{ height: iframeHeight }}
         sandbox="allow-scripts allow-same-origin"
       />
+      <button
+        type="button"
+        onClick={onToggleSelectMode}
+        className={`absolute bottom-3 right-3 flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium shadow-md transition-colors ${
+          isSelectMode
+            ? 'bg-primary text-primary-foreground'
+            : 'bg-gray-900/80 text-gray-100 border border-gray-700 hover:bg-gray-800/90'
+        }`}
+     >
+        <span
+          className={`inline-block h-2 w-2 rounded-full ${
+            isSelectMode ? 'bg-emerald-400' : 'bg-gray-400'
+          }`}
+        />
+        <span>{isSelectMode ? 'Selecting elements' : 'Select design'}</span>
+      </button>
     </div>
   );
 });
