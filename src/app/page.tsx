@@ -8,9 +8,10 @@ import { EditorPanel } from '@/components/editor/editor-panel';
 import { type Message } from '@/components/chat/chat-message';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CodeEditor } from '@/components/editor/code-editor';
 import { CodeBlock } from '@/components/ui/code-block';
-import { generateHtmlFromPrompt } from '@/ai/flows/generate-html-from-prompt';
-import { updateCodeWithAIDiff } from '@/ai/flows/update-code-with-ai-diff';
+import { initializeDefaultProject } from '@/lib/project-initializer';
+import { AIFileSync } from '@/lib/ai-file-sync';
 import { initialHtml, initialCss, initialJs, initialMessages } from '@/lib/initial-content';
 import { formatHtml, extractBodyContent } from '@/lib/utils';
 import { mutateHtmlByPath } from '@/lib/html-editor';
@@ -59,6 +60,9 @@ export default function Home() {
   const [activeFile, setActiveFile] = useState<'html' | 'css' | 'js'>('html');
   const [isSelectMode, setIsSelectMode] = useState(false);
 
+  // Initialize AI file sync
+  const fileSync = useMemo(() => new AIFileSync(), []);
+
   const [history, setHistory] = useState<string[]>([initialHtml]);
   const [historyIndex, setHistoryIndex] = useState(0);
 
@@ -66,7 +70,7 @@ export default function Home() {
   const canRedo = historyIndex < history.length - 1;
 
   const pushHistory = useCallback((nextHtml: string) => {
-    setHistory((prev) => {
+    setHistory((prev: string[]) => {
       const truncated = prev.slice(0, historyIndex + 1);
       return [...truncated, nextHtml];
     });
@@ -86,91 +90,214 @@ export default function Home() {
   }, [canRedo, history, historyIndex]);
 
   const handleRefreshPreview = useCallback(() => {
-    setHtmlContent((prev) => `${prev}`);
+    setHtmlContent((prev: string) => `${prev}`);
   }, []);
 
   const handleChatSubmit = (prompt: string) => {
-    const newMessages: Message[] = [...messages, { role: 'user', content: prompt }];
+    const userMessage: Message = {
+      role: 'user',
+      content: prompt,
+    };
+    const newMessages: Message[] = [...messages, userMessage];
     setMessages(newMessages);
     setSelectedElement(null);
 
     startTransition(async () => {
       try {
-        const fullPrompt = `Current project state HTML (for index.html):
----
-${htmlContent}
----
+        // Check if this is a multi-file project request
+        const isMultiFileRequest = prompt.toLowerCase().includes('multi') || 
+                                   prompt.toLowerCase().includes('project') || 
+                                   prompt.toLowerCase().includes('website') ||
+                                   prompt.toLowerCase().includes('create multiple') ||
+                                   prompt.toLowerCase().includes('folder');
 
-User request: "${prompt}"
-
-Think carefully about the overall website structure (sections, navigation, interactions), but do not include your reasoning in the answer. Only return final code for html, css, and js.`;
-
-        const response = await generateHtmlFromPrompt({ prompt: fullPrompt });
-        
-        if (response.html) {
-          const normalizedHtml = extractBodyContent(response.html);
-          setHtmlContent(normalizedHtml);
-          pushHistory(normalizedHtml);
-          if (typeof response.css === 'string') {
-            setCssContent(response.css);
-          }
-          if (typeof response.js === 'string') {
-            setJsContent(response.js);
-          }
-          setActiveFile('html');
-
-          const assistantMessages: Message[] = [
-            {
-              role: 'assistant',
-              content: 'Index.html has been updated with the new layout. Check the Code tab or preview to see it.',
-            },
-          ];
-
-          if (response.css && response.css.trim()) {
-            assistantMessages.push({
-              role: 'assistant',
-              content: 'styles.css was regenerated with Tailwind classes and any custom tweaks.',
-            });
-          }
-
-          if (response.js && response.js.trim()) {
-            assistantMessages.push({
-              role: 'assistant',
-              content: 'script.js now includes the latest interactivity logic.',
-            });
-          }
-
-          setMessages([
-            ...newMessages,
-            ...assistantMessages,
-          ]);
-        } else {
-            throw new Error('AI did not return HTML.');
-        }
-
-      } catch (error) {
-        console.error('AI Error:', error);
-
-        const isOverloaded =
-          error instanceof Error &&
-          typeof error.message === 'string' &&
-          error.message.includes('503 Service Unavailable');
-
-        toast({
-          variant: 'destructive',
-          title: isOverloaded ? 'AI model is busy' : 'An error occurred',
-          description: isOverloaded
-            ? 'The Gemini model is temporarily overloaded. Please wait a moment and try again.'
-            : 'Failed to communicate with the AI. Please try again.',
+        // Call streaming API route
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ prompt }),
         });
 
-        setMessages([
-          ...newMessages,
+        if (!response.ok) {
+          throw new Error(`API request failed: ${response.statusText}`);
+        }
+
+        if (!response.body) {
+          throw new Error('No response body');
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        
+        // Add initial streaming message
+        let streamingMessage: Message = {
+          role: 'assistant',
+          content: '',
+        };
+        setMessages(prev => [...prev, streamingMessage]);
+
+        let aiResponse: any = null;
+        let isMultiFile = false;
+        const streamedFiles: Array<{ name: string; content: string; type: string }> = []
+        let streamingCodeContent = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+
+                switch (data.type) {
+                  case 'status':
+                    // Update streaming message with status
+                    streamingMessage = {
+                      ...streamingMessage,
+                      content: data.message,
+                    };
+                    setMessages(prev => {
+                      const updated = [...prev];
+                      updated[updated.length - 1] = streamingMessage;
+                      return updated;
+                    });
+                    break;
+
+                  case 'code_chunk':
+                    // Accumulate streaming code chunks
+                    streamingCodeContent += data.chunk;
+
+                    // Update streaming message to show live code generation
+                    streamingMessage = {
+                      ...streamingMessage,
+                      content: `Generating code...\n\`\`\`\`\n${streamingCodeContent}\n\`\`\``,
+                      code: streamingCodeContent,
+                    };
+                    setMessages(prev => {
+                      const updated = [...prev];
+                      updated[updated.length - 1] = streamingMessage;
+                      return updated;
+                    });
+                    break;
+
+                  case 'file':
+                    // Add file to streamed files and update editor
+                    streamedFiles.push(data.file);
+
+                    // Update code editor immediately with new file
+                    fileSync.syncSingleFile(data.file.name, data.file.content, data.file.type);
+
+                    // Update streaming message to show file creation
+                    streamingMessage = {
+                      ...streamingMessage,
+                      content: `${streamingMessage.content}\n📁 Created ${data.file.name}`,
+                    };
+                    setMessages(prev => {
+                      const updated = [...prev];
+                      updated[updated.length - 1] = streamingMessage;
+                      return updated;
+                    });
+                    break;
+
+                  case 'complete':
+                    aiResponse = data.response;
+                    isMultiFile = data.isMultiFile;
+
+                    // Final success message
+                    const finalMessage = isMultiFile
+                      ? `✅ Multi-file project structure has been created and synchronized with the code editor. Check the Code tab to see all files and folders.`
+                      : `✅ Code has been generated and updated in the editor.`;
+
+                    setMessages(prev => {
+                      const updated = [...prev];
+                      updated[updated.length - 1] = {
+                        role: 'assistant',
+                        content: finalMessage,
+                      };
+                      return updated;
+                    });
+                    break;
+
+                  case 'error':
+                    throw new Error(data.error || 'Unknown error occurred');
+                }
+              } catch (parseError) {
+                console.error('Error parsing stream data:', parseError);
+              }
+            }
+          }
+        }
+
+        // Update legacy state for compatibility
+        let legacyResponse: { html?: unknown; css?: string; js?: string } = {};
+
+        if (!isMultiFile && aiResponse) {
+          // Check if response has pages format (legacy single-file)
+          if ('pages' in aiResponse) {
+            type LegacyResponseType = {
+              html?: unknown;
+              css?: string;
+              js?: string;
+              pages?: Array<{ body: string | unknown }>;
+            };
+            const legacyTypedResponse = aiResponse as LegacyResponseType;
+            const normalizedPages = legacyTypedResponse.pages?.map((page) => ({
+              ...page,
+              body: extractBodyContent(typeof page.body === 'string' ? page.body : ''),
+            }));
+            const htmlFromPages = normalizedPages?.[0]?.body;
+            
+            const legacyHtmlField = legacyTypedResponse.html;
+            const legacyHtml = typeof legacyHtmlField === 'string' ? extractBodyContent(legacyHtmlField) : '';
+            const normalizedHtml = htmlFromPages ?? legacyHtml;
+
+            if (normalizedHtml) {
+              setHtmlContent(normalizedHtml);
+              pushHistory(normalizedHtml);
+              if (legacyTypedResponse.css) {
+                setCssContent(legacyTypedResponse.css);
+              }
+              if (legacyTypedResponse.js) {
+                setJsContent(legacyTypedResponse.js);
+              }
+              setActiveFile('html');
+            }
+            
+            // Store the typed response for use in message generation
+            legacyResponse = legacyTypedResponse;
+          }
+        } else {
+          // Update legacy state from file sync for multi-file responses
+          const legacyContents = fileSync.getLegacyContents();
+          if (legacyContents.html) {
+            setHtmlContent(legacyContents.html);
+            pushHistory(legacyContents.html);
+          }
+          setCssContent(legacyContents.css);
+          setJsContent(legacyContents.js);
+        }
+
+      } catch (error: any) {
+        console.error('Chat submission error:', error);
+        toast({
+          title: 'Error',
+          description: error.message || 'Failed to process your request. Please try again.',
+          variant: 'destructive',
+        });
+        setMessages(prev => [
+          ...prev,
           {
             role: 'assistant',
-            content: isOverloaded
-              ? 'The AI model is currently overloaded (503). Please wait a bit and send your request again.'
-              : 'Sorry, I encountered an error. Please try again.',
+            content: 'Sorry, I encountered an error. Please try again.',
           },
         ]);
       }
@@ -190,7 +317,14 @@ Think carefully about the overall website structure (sections, navigation, inter
         return;
       }
 
-      (node.style as CSSStyleDeclaration & Record<string, string | undefined>)[property] = value;
+      // Type-safe style property assignment
+      if (property in node.style) {
+        // Use direct property access for standard CSS properties
+        (node.style as any)[property] = value;
+      } else {
+        // Handle custom CSS properties
+        node.style.setProperty(property, value);
+      }
     };
 
     const applyPreset = (node: HTMLElement, preset: PresetStyle) => {
@@ -258,9 +392,14 @@ Think carefully about the overall website structure (sections, navigation, inter
         }
       });
       pushHistory(next);
+
+      // Sync the updated HTML with the code editor
+      const fullHtml = `<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charSet="UTF-8" />\n  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n  <title>Next Inai Page</title>\n  <link rel="stylesheet" href="styles.css" />\n</head>\n<body>\n${formatHtml(next)}\n  <script src="script.js"></script>\n</body>\n</html>`;
+      fileSync.syncSingleFile('index.html', fullHtml, 'html');
+
       return next;
     });
-  }, [pushHistory]);
+  }, [pushHistory, fileSync]);
 
   const handleMessage = useCallback((event: MessageEvent) => {
     // Basic security: check the origin of the message
@@ -270,7 +409,7 @@ Think carefully about the overall website structure (sections, navigation, inter
     }
     
     const { type, ...data } = event.data;
-    if (type === 'webforge-select') {
+    if (type === 'nextinai-select') {
       setSelectedElement(data as SelectedElement);
     }
   }, []);
@@ -284,7 +423,12 @@ Think carefully about the overall website structure (sections, navigation, inter
     };
   }, [handleMessage]);
 
-  const htmlFileForCode = `<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charSet="UTF-8" />\n  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n  <title>WebForgeAI Page</title>\n  <link rel="stylesheet" href="styles.css" />\n</head>\n<body>\n${formatHtml(htmlContent)}\n  <script src="script.js"></script>\n</body>\n</html>`;
+  // Initialize default project on mount
+  useEffect(() => {
+    initializeDefaultProject();
+  }, []);
+
+  const htmlFileForCode = `<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charSet="UTF-8" />\n  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n  <title>Next Inai Page</title>\n  <link rel="stylesheet" href="styles.css" />\n</head>\n<body>\n${formatHtml(htmlContent)}\n  <script src="script.js"></script>\n</body>\n</html>`;
 
   const codeForActiveFile =
     activeFile === 'css'
@@ -336,49 +480,7 @@ Think carefully about the overall website structure (sections, navigation, inter
                     />
                 </TabsContent>
                 <TabsContent value="code" className="flex-1 min-h-0 overflow-hidden bg-gray-950">
-                  <div className="flex h-full min-h-0">
-                    <div className="w-48 border-r border-gray-800 bg-gray-950/80">
-                      <div className="px-3 py-2 text-xs font-medium uppercase tracking-wide text-gray-400">
-                        Files
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setActiveFile('html')}
-                        className={
-                          activeFile === 'html'
-                            ? 'flex w-full items-center px-3 py-1.5 text-sm text-left bg-gray-900 text-white'
-                            : 'flex w-full items-center px-3 py-1.5 text-sm text-left text-gray-300 hover:bg-gray-900/40'
-                        }
-                      >
-                        index.html
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setActiveFile('css')}
-                        className={
-                          activeFile === 'css'
-                            ? 'flex w-full items-center px-3 py-1.5 text-sm text-left bg-gray-900 text-white'
-                            : 'flex w-full items-center px-3 py-1.5 text-sm text-left text-gray-300 hover:bg-gray-900/40'
-                        }
-                      >
-                        styles.css
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setActiveFile('js')}
-                        className={
-                          activeFile === 'js'
-                            ? 'flex w-full items-center px-3 py-1.5 text-sm text-left bg-gray-900 text-white'
-                            : 'flex w-full items-center px-3 py-1.5 text-sm text-left text-gray-300 hover:bg-gray-900/40'
-                        }
-                      >
-                        script.js
-                      </button>
-                    </div>
-                    <div className="flex-1 min-h-0 overflow-auto">
-                      <CodeBlock code={codeForActiveFile} language={languageForActiveFile} />
-                    </div>
-                  </div>
+                  <CodeEditor className="h-full" />
                 </TabsContent>
             </Tabs>
 

@@ -1,6 +1,6 @@
-# **App Name**: WebForgeAI
+# **App Name**: Next Inai
 
-## Core Features:
+## Core Features
 
 - Chat Interface: Conversational UI in the left sidebar for users to input instructions and receive updates. Message history is maintained in the local state.
 - Live Preview: IFrame-based real-time website preview reflecting the current state of index.html, styles.css and script.js.
@@ -10,7 +10,7 @@
 - Minimal-Diff Code Updates: The application uses AI to selectively update lines/blocks of code based on chat inputs, ensuring minimal code changes to index.html, styles.css and script.js.
 - Export to Tailwind CSS: Export of CSS styles that work with tailwind.
 
-## Style Guidelines:
+## Style Guidelines
 
 - Primary color: Deep Indigo (#3F51B5) to give a corporate, trustworthy feel.
 - Background color: Light Gray (#F5F5F5), nearly white, but not pure white.

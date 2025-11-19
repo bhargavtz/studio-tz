@@ -16,17 +16,23 @@ export function Header({ htmlContent, cssContent, jsContent }: HeaderProps) {
 
   const handleDownload = async () => {
     try {
+      // Validate inputs before proceeding
+      if (!htmlContent || !cssContent || !jsContent) {
+        throw new Error('Missing required content for download');
+      }
+      
       await downloadProject(htmlContent, cssContent, jsContent);
       toast({
         title: 'Project Zipped!',
         description: 'Your project has been downloaded.',
       });
     } catch (error) {
-      console.error("Failed to download project:", error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown download error';
+      console.error("Failed to download project:", errorMessage, error);
       toast({
         variant: 'destructive',
         title: 'Download Failed',
-        description: 'There was an error creating the zip file.',
+        description: errorMessage || 'There was an error creating the zip file.',
       });
     }
   };
@@ -36,7 +42,7 @@ export function Header({ htmlContent, cssContent, jsContent }: HeaderProps) {
       <div className="flex items-center gap-2">
         <Sparkles className="h-7 w-7 text-primary" />
         <h1 className="text-xl font-bold font-headline text-foreground">
-          WebForgeAI
+          Next Inai
         </h1>
       </div>
       <Button onClick={handleDownload} variant="default">

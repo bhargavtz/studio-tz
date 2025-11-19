@@ -8,7 +8,7 @@ export async function downloadProject(html: string, css: string, js: string) {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>WebForgeAI Export</title>
+  <title>Next Inai Export</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
@@ -39,7 +39,7 @@ ${html}
   zip.file('styles.css', `/* Additional custom styles */\n${css}`);
   zip.file('script.js', js);
 
-  zip.file('README.md', `# WebForgeAI Export
+  zip.file('README.md', `# Next Inai Export
 
 This project was generated with Tailwind CSS (via CDN) and optional Vue 3 enhancements.
 
@@ -55,7 +55,7 @@ Feel free to edit the files directly and refresh the browser to see changes.
   const content = await zip.generateAsync({ type: 'blob' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(content);
-  link.download = 'webforge-project.zip';
+  link.download = 'next-inai-project.zip';
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

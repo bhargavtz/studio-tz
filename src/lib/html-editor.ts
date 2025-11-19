@@ -15,7 +15,7 @@ export function mutateHtmlByPath(html: string, path: number[], mutator: ElementM
   try {
     const ParserCtor = window.DOMParser ?? DOMParser;
     if (!ParserCtor) {
-      return html;
+      throw new Error('DOMParser not available');
     }
     const parser = new ParserCtor();
     const doc = parser.parseFromString(`<body>${html}</body>`, 'text/html');
@@ -23,7 +23,7 @@ export function mutateHtmlByPath(html: string, path: number[], mutator: ElementM
 
     for (const index of path) {
       if (!current || !current.children[index]) {
-        return html;
+        throw new Error(`Invalid path index: ${index}`);
       }
       current = current.children[index];
     }
@@ -32,9 +32,13 @@ export function mutateHtmlByPath(html: string, path: number[], mutator: ElementM
       mutator(current as HTMLElement);
       return doc.body.innerHTML;
     }
-  } catch (error) {
-    console.error('mutateHtmlByPath failed', error);
-  }
 
-  return html;
+    // If we reach here, no valid element was found
+    throw new Error('No valid element found at the specified path');
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    console.error('mutateHtmlByPath failed:', errorMessage, error);
+    // Return original HTML to prevent corruption
+    return html;
+  }
 }

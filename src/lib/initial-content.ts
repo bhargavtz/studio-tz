@@ -1,6 +1,18 @@
 import { type Message } from '@/components/chat/chat-message';
 
-export const initialHtml = `<div class="bg-gray-900 text-white font-sans">
+export type HtmlPageFile = {
+  id: string;
+  filename: string;
+  label: string;
+  body: string;
+};
+
+export const initialPages: HtmlPageFile[] = [
+  {
+    id: 'home',
+    filename: 'index.html',
+    label: 'Home',
+    body: `<div class="bg-gray-900 text-white font-sans">
   <div class="container mx-auto px-4 py-20 text-center">
     <h1 class="text-5xl font-bold font-headline text-white mb-4">Build Your Website with AI</h1>
     <p class="text-xl text-gray-300 max-w-2xl mx-auto">
@@ -12,15 +24,19 @@ export const initialHtml = `<div class="bg-gray-900 text-white font-sans">
       </button>
     </div>
   </div>
-</div>`;
+</div>`,
+  },
+];
+
+export const initialHtml = initialPages[0]?.body ?? '';
 
 export const initialCss = `/* Custom styles can go here */`;
 
-export const initialJs = `console.log("Welcome to your WebForgeAI project!");`;
+export const initialJs = `console.log("Welcome to your Next Inai project!");`;
 
 export const initialMessages: Message[] = [
   {
     role: 'assistant',
-    content: "Hi, I'm WebForgeAI. Describe the experience you want (e.g., SaaS landing, ecommerce, portfolio) and I'll design it with responsive HTML, Tailwind CSS layers, and interactive JavaScript or Vue 3 components. Want playful micro-interactions or premium motion? Just say so and I'll weave in tasteful animations, gradients, and effects.",
+    content: "Hi, I'm Next Inai. Describe the experience you want—playful micro-interactions or premium motion?",
   },
 ];
