@@ -105,14 +105,14 @@ export default function Home() {
     startTransition(async () => {
       try {
         // Check if this is a multi-file project request
-        const isMultiFileRequest = prompt.toLowerCase().includes('multi') || 
-                                   prompt.toLowerCase().includes('project') || 
-                                   prompt.toLowerCase().includes('website') ||
-                                   prompt.toLowerCase().includes('create multiple') ||
-                                   prompt.toLowerCase().includes('folder');
+        const isMultiFileRequest = prompt.toLowerCase().includes('multi') ||
+          prompt.toLowerCase().includes('project') ||
+          prompt.toLowerCase().includes('website') ||
+          prompt.toLowerCase().includes('create multiple') ||
+          prompt.toLowerCase().includes('folder');
 
         // Call streaming API route
-        const response = await fetch('/api/chat', {
+        const response = await fetch('http://localhost:8000/chat', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -131,7 +131,7 @@ export default function Home() {
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
-        
+
         // Add initial streaming message
         let streamingMessage: Message = {
           role: 'assistant',
@@ -255,7 +255,7 @@ export default function Home() {
               body: extractBodyContent(typeof page.body === 'string' ? page.body : ''),
             }));
             const htmlFromPages = normalizedPages?.[0]?.body;
-            
+
             const legacyHtmlField = legacyTypedResponse.html;
             const legacyHtml = typeof legacyHtmlField === 'string' ? extractBodyContent(legacyHtmlField) : '';
             const normalizedHtml = htmlFromPages ?? legacyHtml;
@@ -271,7 +271,7 @@ export default function Home() {
               }
               setActiveFile('html');
             }
-            
+
             // Store the typed response for use in message generation
             legacyResponse = legacyTypedResponse;
           }
@@ -303,7 +303,7 @@ export default function Home() {
       }
     });
   };
-  
+
   const handleElementUpdate = useCallback((path: number[], mutation: ElementMutation) => {
     if (!path || !mutation) return;
 
@@ -407,7 +407,7 @@ export default function Home() {
     if (event.source !== iframeRef.current?.contentWindow) {
       return;
     }
-    
+
     const { type, ...data } = event.data;
     if (type === 'nextinai-select') {
       setSelectedElement(data as SelectedElement);
@@ -451,46 +451,46 @@ export default function Home() {
           />
         </div>
         <div className="relative col-span-1 md:col-span-2 xl:col-span-3 h-full flex flex-col min-h-0">
-            <Tabs defaultValue="preview" className="flex flex-col flex-1 min-h-0 w-full">
-                <div className="flex items-center justify-between p-2 border-b gap-2">
-                    <TabsList>
-                        <TabsTrigger value="preview">Preview</TabsTrigger>
-                        <TabsTrigger value="code">Code</TabsTrigger>
-                    </TabsList>
-                    <div className="flex items-center gap-2">
-                      <Button variant="ghost" size="icon" onClick={handleUndo} disabled={!canUndo} title="Undo">
-                        <Undo2 className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={handleRedo} disabled={!canRedo} title="Redo">
-                        <Redo2 className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={handleRefreshPreview} title="Refresh preview">
-                        <RotateCw className="h-4 w-4" />
-                      </Button>
-                    </div>
-                </div>
-                <TabsContent value="preview" className="flex-1 min-h-0 overflow-auto">
-                    <PreviewPanel
-                        ref={iframeRef}
-                        htmlContent={htmlContent}
-                        cssContent={cssContent}
-                        jsContent={jsContent}
-                        isSelectMode={isSelectMode}
-                        onToggleSelectMode={() => setIsSelectMode(prev => !prev)}
-                    />
-                </TabsContent>
-                <TabsContent value="code" className="flex-1 min-h-0 overflow-hidden bg-gray-950">
-                  <CodeEditor className="h-full" />
-                </TabsContent>
-            </Tabs>
+          <Tabs defaultValue="preview" className="flex flex-col flex-1 min-h-0 w-full">
+            <div className="flex items-center justify-between p-2 border-b gap-2">
+              <TabsList>
+                <TabsTrigger value="preview">Preview</TabsTrigger>
+                <TabsTrigger value="code">Code</TabsTrigger>
+              </TabsList>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="icon" onClick={handleUndo} disabled={!canUndo} title="Undo">
+                  <Undo2 className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon" onClick={handleRedo} disabled={!canRedo} title="Redo">
+                  <Redo2 className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon" onClick={handleRefreshPreview} title="Refresh preview">
+                  <RotateCw className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            <TabsContent value="preview" className="flex-1 min-h-0 overflow-auto">
+              <PreviewPanel
+                ref={iframeRef}
+                htmlContent={htmlContent}
+                cssContent={cssContent}
+                jsContent={jsContent}
+                isSelectMode={isSelectMode}
+                onToggleSelectMode={() => setIsSelectMode(prev => !prev)}
+              />
+            </TabsContent>
+            <TabsContent value="code" className="flex-1 min-h-0 overflow-hidden bg-gray-950">
+              <CodeEditor className="h-full" />
+            </TabsContent>
+          </Tabs>
 
-            {selectedElement && (
-                <EditorPanel
-                  element={selectedElement}
-                  onClose={() => setSelectedElement(null)}
-                  onUpdate={handleElementUpdate}
-                />
-            )}
+          {selectedElement && (
+            <EditorPanel
+              element={selectedElement}
+              onClose={() => setSelectedElement(null)}
+              onUpdate={handleElementUpdate}
+            />
+          )}
         </div>
       </main>
     </div>
