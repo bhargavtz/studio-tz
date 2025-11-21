@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { type ElementMutation, type ElementStyleProperty, type SelectedElement } from '@/app/page';
+import { type ElementMutation, type ElementStyleProperty, type SelectedElement } from '@/app/builder/page';
 import { useEffect, useState, useTransition } from 'react';
 import { X, LoaderCircle, WrapText, Brush, Ruler, Palette, Type, AlignLeft, AlignCenter, AlignRight, Sparkles } from 'lucide-react';
 
@@ -78,10 +78,10 @@ export function EditorPanel({ element, onClose, onUpdate }: EditorPanelProps) {
               rows={3}
               disabled={isUpdating}
             />
-             <Button size="sm" onClick={() => sendMutation({ type: 'text', value: textContent })} disabled={isUpdating || !textContent.trim()} className="w-full">
-                {isUpdating ? <LoaderCircle className="animate-spin" /> : <WrapText />}
-                Update Text
-             </Button>
+            <Button size="sm" onClick={() => sendMutation({ type: 'text', value: textContent })} disabled={isUpdating || !textContent.trim()} className="w-full">
+              {isUpdating ? <LoaderCircle className="animate-spin" /> : <WrapText />}
+              Update Text
+            </Button>
           </div>
           <div className="space-y-3">
             <Label htmlFor="class-names">Tailwind Classes</Label>
@@ -94,8 +94,8 @@ export function EditorPanel({ element, onClose, onUpdate }: EditorPanelProps) {
               className="font-mono text-xs"
             />
             <Button size="sm" onClick={() => sendMutation({ type: 'classes', value: classNames })} disabled={isUpdating || !classNames.trim()} className="w-full">
-               {isUpdating ? <LoaderCircle className="animate-spin" /> : <Brush />}
-               Update Classes
+              {isUpdating ? <LoaderCircle className="animate-spin" /> : <Brush />}
+              Update Classes
             </Button>
           </div>
           <div className="space-y-3 rounded-lg border border-border/40 p-3">
