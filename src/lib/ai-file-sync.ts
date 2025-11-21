@@ -131,19 +131,19 @@ export class AIFileSync {
    */
   private findFileNode(fileName: string): any {
     const project = this.projectManager.getProject();
-    
+
     const searchNode = (node: any): any => {
       if (node.type === 'file' && node.name === fileName) {
         return node;
       }
-      
+
       if (node.children) {
         for (const child of node.children) {
           const found = searchNode(child);
           if (found) return found;
         }
       }
-      
+
       return null;
     };
 
@@ -155,7 +155,7 @@ export class AIFileSync {
    */
   private clearProject(): void {
     const project = this.projectManager.getProject();
-    
+
     if (project.root.children) {
       // Delete all children in reverse order
       const children = [...project.root.children];
@@ -172,16 +172,33 @@ export class AIFileSync {
 
   /**
    * Extracts HTML content from AI response
+   * Returns complete HTML if available, otherwise extracts body content for backward compatibility
    */
   private extractHtmlContent(response: any): string {
     // Handle pages format
     if (response.pages?.length > 0) {
       const page = response.pages[0];
-      return extractBodyContent(typeof page.body === 'string' ? page.body : '');
+      const bodyContent = typeof page.body === 'string' ? page.body : '';
+
+      // Check if it's a complete HTML document
+      if (bodyContent.trim().startsWith('<!DOCTYPE') || bodyContent.trim().startsWith('<html')) {
+        // Return complete HTML as-is
+        return bodyContent;
+      }
+
+      // For backward compatibility: extract body content from incomplete HTML
+      return extractBodyContent(bodyContent);
     }
 
     // Handle legacy html field
     if (response.html && typeof response.html === 'string') {
+      // Check if it's a complete HTML document
+      if (response.html.trim().startsWith('<!DOCTYPE') || response.html.trim().startsWith('<html')) {
+        // Return complete HTML as-is
+        return response.html;
+      }
+
+      // For backward compatibility: extract body content
       return extractBodyContent(response.html);
     }
 
@@ -205,7 +222,7 @@ export class AIFileSync {
           contents.js = node.content || '';
         }
       }
-      
+
       if (node.children) {
         node.children.forEach(searchNode);
       }

@@ -82,7 +82,7 @@ export class ProjectManager {
 
     const fileId = this.generateId();
     const path = `${parent.path === '/' ? '' : parent.path}/${name}`;
-    
+
     const newFile: FileNode = {
       id: fileId,
       name,
@@ -96,7 +96,7 @@ export class ProjectManager {
       parent.children = [];
     }
     parent.children.push(newFile);
-    
+
     this.notify();
     return newFile;
   }
@@ -109,7 +109,7 @@ export class ProjectManager {
 
     const folderId = this.generateId();
     const path = `${parent.path === '/' ? '' : parent.path}/${name}`;
-    
+
     const newFolder: FileNode = {
       id: folderId,
       name,
@@ -123,7 +123,7 @@ export class ProjectManager {
       parent.children = [];
     }
     parent.children.push(newFolder);
-    
+
     this.notify();
     return newFolder;
   }
@@ -137,13 +137,13 @@ export class ProjectManager {
     const parent = this.findParent(fileId);
     if (parent && parent.children) {
       parent.children = parent.children.filter(child => child.id !== fileId);
-      
+
       // Remove from open files and active file
       this.project.openFiles = this.project.openFiles.filter(id => id !== fileId);
       if (this.project.activeFileId === fileId) {
         this.project.activeFileId = this.project.openFiles[0] || null;
       }
-      
+
       this.notify();
     }
   }
@@ -158,10 +158,10 @@ export class ProjectManager {
     if (!parent || !parent.children) {
       throw new Error('Parent folder not found');
     }
-    
+
     // Remove folder from parent
     parent.children = parent.children.filter(child => child.id !== folderId);
-    
+
     // Remove any open files that were in this folder
     const removeOpenFilesInFolder = (folderNode: FileNode) => {
       if (folderNode.type === 'file') {
@@ -173,7 +173,7 @@ export class ProjectManager {
         folderNode.children.forEach(removeOpenFilesInFolder);
       }
     };
-    
+
     removeOpenFilesInFolder(node);
     this.notify();
   }
@@ -195,14 +195,14 @@ export class ProjectManager {
     }
 
     node.name = newName;
-    
+
     // Update path
     const parent = this.findParent(fileId);
     if (parent) {
       const parentPath = parent.path === '/' ? '' : parent.path;
       node.path = `${parentPath}/${newName}`;
     }
-    
+
     this.notify();
   }
 
@@ -213,23 +213,23 @@ export class ProjectManager {
     }
 
     this.project.activeFileId = fileId;
-    
+
     // Add to open files if not already there
     if (!this.project.openFiles.includes(fileId)) {
       this.project.openFiles.push(fileId);
     }
-    
+
     this.notify();
   }
 
   closeFile(fileId: string) {
     this.project.openFiles = this.project.openFiles.filter(id => id !== fileId);
-    
+
     // If closing the active file, switch to another open file
     if (this.project.activeFileId === fileId) {
       this.project.activeFileId = this.project.openFiles[0] || null;
     }
-    
+
     this.notify();
   }
 
@@ -260,6 +260,22 @@ export class ProjectManager {
     return this.searchNode(this.project.root, id);
   }
 
+  public getFileByPath(path: string): FileNode | null {
+    const searchByPath = (node: FileNode): FileNode | null => {
+      if (node.type === 'file' && node.path === path) {
+        return node;
+      }
+      if (node.children) {
+        for (const child of node.children) {
+          const found = searchByPath(child);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+    return searchByPath(this.project.root);
+  }
+
   private findParent(id: string): FileNode | null {
     return this.searchParent(this.project.root, id);
   }
@@ -268,7 +284,7 @@ export class ProjectManager {
     if (node.id === id) {
       return node;
     }
-    
+
     if (node.children) {
       for (const child of node.children) {
         const found = this.searchNode(child, id);
@@ -277,7 +293,7 @@ export class ProjectManager {
         }
       }
     }
-    
+
     return null;
   }
 
@@ -285,7 +301,7 @@ export class ProjectManager {
     if (node.id === id) {
       return parent;
     }
-    
+
     if (node.children) {
       for (const child of node.children) {
         const found = this.searchParent(child, id, node);
@@ -294,7 +310,7 @@ export class ProjectManager {
         }
       }
     }
-    
+
     return null;
   }
 
@@ -332,7 +348,7 @@ export class ProjectManager {
       const parts = file.name.split('/');
       const fileName = parts.pop() || 'untitled';
       const folderPath = parts.join('/');
-      
+
       // Create folder structure
       if (folderPath && !folders[folderPath]) {
         const currentPath = '';
@@ -357,7 +373,7 @@ export class ProjectManager {
 
   exportProjectStructure(): Array<{ name: string; content: string; type: string }> {
     const files: Array<{ name: string; content: string; type: string }> = [];
-    
+
     const traverse = (node: FileNode, basePath: string = '') => {
       if (node.type === 'file' && node.content) {
         files.push({
@@ -401,7 +417,7 @@ export class ProjectManager {
       'bash': 'bash',
       'zsh': 'bash'
     };
-    
+
     return languageMap[ext || ''] || 'text';
   }
 }

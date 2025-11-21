@@ -101,17 +101,32 @@ PROJECT_STRUCTURE_SCHEMA = {
 }
 
 # Prompts
-HTML_PROMPT_TEMPLATE = """You are Next Inai — a world-class front-end engineer and product designer focused on creating modern, high-conversion, visually polished single-page websites.
+HTML_PROMPT_TEMPLATE = """You are Next Inai — a world-class front-end engineer and product designer focused on creating modern, high-conversion, visually polished websites.
 
-Think deeply about the user's request and translate it into a clean, responsive, professional single-page website layout. Do NOT include any explanation or internal reasoning. Only output the final code.
+Think deeply about the user's request and translate it into a clean, responsive, professional website. Do NOT include any explanation or internal reasoning. Only output the final code.
 
 User request: {prompt}
 
 REQUIREMENTS (STRICT)
 1. PRIMARY STYLING: Tailwind CSS loaded via CDN is the primary styling layer. Use Tailwind utility classes heavily for layout, spacing, typography, and colors.
 2. SUPPLEMENTARY CSS: You may include simple standard CSS in the "css" output for custom classes, keyframes, @layer overrides, and edge-case polish. Keep normal CSS minimal and focused.
-3. OUTPUT FORMAT: Return a JSON object with Return code for multiple files that work together:
-- pages: Array of 1-6 objects describing each HTML page. For every page provide a unique id (kebab-case), filename (e.g., index.html, about.html), label (e.g., Home, Pricing), and the BODY CONTENT (no <html>, <head>, or <body> tags). Ensure the navigation in each page links to the other filenames so users can move between pages.
+3. OUTPUT FORMAT: Return a JSON object with code for multiple pages that work together:
+- pages: Array of 1-6 objects describing each HTML page. For every page provide:
+  * id: unique identifier (kebab-case)
+  * filename: the HTML filename (e.g., index.html, about.html, contact.html)
+  * label: human-friendly name (e.g., Home, About, Contact)
+  * body: COMPLETE HTML PAGE CONTENT including:
+    - <!DOCTYPE html> declaration
+    - <html lang="en"> tag
+    - <head> section with:
+      * <meta charset="UTF-8">
+      * <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      * <title> tag with page-specific title
+      * <script src="https://cdn.tailwindcss.com"></script> for Tailwind CSS
+      * <link rel="stylesheet" href="styles.css"> for shared custom CSS
+    - <body> section with the page content
+    - <script src="script.js"></script> at the end of body for shared JavaScript
+  * Ensure navigation links in each page use relative paths (href="about.html", href="index.html") to link between pages
 - css: Shared Tailwind layer overrides or custom CSS that should live in styles.css (loaded by every page).
 - js: Shared JavaScript for interactivity. Prefer progressive enhancement with tasteful motion. You may use Vue 3's global build (available as window.Vue) to structure components/state when it improves the experience, or stick to vanilla JS where simpler.
 
@@ -124,15 +139,16 @@ RESPONSIVE + LAYOUT RULES
 UI / DESIGN / INTERACTIONS
 8. Visual polish: clean typography, balanced spacing, professional color palette with Tailwind classes, clear CTAs, and consistent UI scales.
 9. Micro-interactions: subtle hover/focus states, reveal-on-scroll or fade-in animations, and tasteful motion. Prefer CSS keyframes or Tailwind keyframes; use Vue transitions only when reactive state or components materially improve UX.
-10. Navigation: provide a simple top navigation with smooth scrolling to anchors. Sticky header is allowed but keep it minimal and unobtrusive.
+10. Navigation: provide a simple top navigation with links to all pages. Navigation should be consistent across all pages. Use smooth scrolling for anchor links within the same page.
 
 TECHNICAL CONSTRAINTS
-11. Allowed external resources: Tailwind CDN and Vue 3 global build (https://unpkg.com/vue@3/dist/vue.global.js) only. No other external libraries or APIs.
+11. Allowed external resources: Tailwind CDN (https://cdn.tailwindcss.com) and Vue 3 global build (https://unpkg.com/vue@3/dist/vue.global.js) only. No other external libraries or APIs.
 12. No server-side code, no API keys, no references to backend endpoints. The result must be self-contained static content.
 13. Keep JavaScript minimal and progressive: the page must work without JS for basic content and layout; JS enhances interactivity.
 
 DELIVERABLE FORMAT (EXACT)
 14. Return ONLY the JSON object. Do NOT include any surrounding commentary, analysis, or extra fields.
+15. Each page's "body" field must contain the COMPLETE HTML document from <!DOCTYPE html> to </html>.
 """
 
 MULTI_FILE_PROMPT_TEMPLATE = """You are Next Inai - an expert full-stack developer specializing in creating complete, production-ready web projects with multiple files and proper folder structure.
@@ -266,13 +282,18 @@ async def chat(request: ChatRequest):
                 
                 response_data = json.loads(result.text)
                 
-                # Send individual parts
+                # Send all pages as separate HTML files
                 if "pages" in response_data and len(response_data["pages"]) > 0:
-                    yield f"data: {json.dumps({'type': 'file', 'file': {'name': 'index.html', 'content': response_data['pages'][0]['body'], 'type': 'html'}})}\n\n"
+                    for page in response_data["pages"]:
+                        filename = page.get("filename", "index.html")
+                        content = page.get("body", "")
+                        yield f"data: {json.dumps({'type': 'file', 'file': {'name': filename, 'content': content, 'type': 'html'}})}\n\n"
                 
+                # Send shared CSS file
                 if "css" in response_data and response_data["css"]:
                     yield f"data: {json.dumps({'type': 'file', 'file': {'name': 'styles.css', 'content': response_data['css'], 'type': 'css'}})}\n\n"
                     
+                # Send shared JS file
                 if "js" in response_data and response_data["js"]:
                     yield f"data: {json.dumps({'type': 'file', 'file': {'name': 'script.js', 'content': response_data['js'], 'type': 'javascript'}})}\n\n"
             
