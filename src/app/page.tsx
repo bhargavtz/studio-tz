@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CodeEditor } from '@/components/editor/code-editor';
 import { CodeBlock } from '@/components/ui/code-block';
 import { initializeDefaultProject } from '@/lib/project-initializer';
+import { ProjectManager } from '@/lib/project-manager';
 import { AIFileSync } from '@/lib/ai-file-sync';
 import { initialHtml, initialCss, initialJs, initialMessages } from '@/lib/initial-content';
 import { formatHtml, extractBodyContent } from '@/lib/utils';
@@ -250,15 +251,32 @@ export default function Home() {
               pages?: Array<{ body: string | unknown }>;
             };
             const legacyTypedResponse = aiResponse as LegacyResponseType;
-            const normalizedPages = legacyTypedResponse.pages?.map((page) => ({
-              ...page,
-              body: extractBodyContent(typeof page.body === 'string' ? page.body : ''),
-            }));
-            const htmlFromPages = normalizedPages?.[0]?.body;
 
+            // Get HTML from pages - preserve complete HTML if present
+            const firstPage = legacyTypedResponse.pages?.[0];
+            let htmlFromPages = '';
+            if (firstPage) {
+              const pageBody = typeof firstPage.body === 'string' ? firstPage.body : '';
+              // Check if it's complete HTML or body-only
+              if (pageBody.trim().startsWith('<!DOCTYPE') || pageBody.trim().startsWith('<html')) {
+                htmlFromPages = pageBody; // Complete HTML
+              } else {
+                htmlFromPages = extractBodyContent(pageBody); // Body-only (backward compat)
+              }
+            }
+
+            // Get HTML from legacy html field
             const legacyHtmlField = legacyTypedResponse.html;
-            const legacyHtml = typeof legacyHtmlField === 'string' ? extractBodyContent(legacyHtmlField) : '';
-            const normalizedHtml = htmlFromPages ?? legacyHtml;
+            let legacyHtml = '';
+            if (typeof legacyHtmlField === 'string') {
+              if (legacyHtmlField.trim().startsWith('<!DOCTYPE') || legacyHtmlField.trim().startsWith('<html')) {
+                legacyHtml = legacyHtmlField; // Complete HTML
+              } else {
+                legacyHtml = extractBodyContent(legacyHtmlField); // Body-only (backward compat)
+              }
+            }
+
+            const normalizedHtml = htmlFromPages || legacyHtml;
 
             if (normalizedHtml) {
               setHtmlContent(normalizedHtml);
@@ -370,7 +388,30 @@ export default function Home() {
     };
 
     setHtmlContent((prev) => {
-      const next = mutateHtmlByPath(prev, path, (node) => {
+      // Check if we're working with complete HTML or body-only
+      const isCompleteHtml = prev.trim().startsWith('<!DOCTYPE') || prev.trim().startsWith('<html');
+
+      let bodyContent = prev;
+      let htmlPrefix = '';
+      let htmlSuffix = '';
+
+      if (isCompleteHtml) {
+        // Extract body content for mutation
+        const bodyStartMatch = prev.match(/<body[^>]*>/i);
+        const bodyEndMatch = prev.match(/<\/body>/i);
+
+        if (bodyStartMatch && bodyEndMatch) {
+          const bodyStartIndex = bodyStartMatch.index! + bodyStartMatch[0].length;
+          const bodyEndIndex = bodyEndMatch.index!;
+
+          htmlPrefix = prev.substring(0, bodyStartIndex);
+          bodyContent = prev.substring(bodyStartIndex, bodyEndIndex);
+          htmlSuffix = prev.substring(bodyEndIndex);
+        }
+      }
+
+      // Mutate the body content
+      const next = mutateHtmlByPath(bodyContent, path, (node) => {
         switch (mutation.type) {
           case 'text':
             node.textContent = mutation.value;
@@ -391,13 +432,29 @@ export default function Home() {
             break;
         }
       });
+
       pushHistory(next);
 
-      // Sync the updated HTML with the code editor
-      const fullHtml = `<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charSet="UTF-8" />\n  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n  <title>Next Inai Page</title>\n  <link rel="stylesheet" href="styles.css" />\n</head>\n<body>\n${formatHtml(next)}\n  <script src="script.js"></script>\n</body>\n</html>`;
-      fileSync.syncSingleFile('index.html', fullHtml, 'html');
+      // Reconstruct complete HTML if needed
+      const finalHtml = isCompleteHtml ? htmlPrefix + next + htmlSuffix : next;
 
-      return next;
+      // Sync the updated HTML with the code editor
+      // Get the currently active file from ProjectManager
+      const projectManager = ProjectManager.getInstance();
+      const activeFileId = projectManager.getProject().activeFileId;
+
+      if (activeFileId) {
+        const activeFile = projectManager.findNodePublic(activeFileId);
+        if (activeFile && activeFile.type === 'file' && activeFile.language === 'html') {
+          // Update the active HTML file
+          fileSync.syncSingleFile(activeFile.name, finalHtml, 'html');
+        }
+      } else {
+        // Fallback to index.html if no active file
+        fileSync.syncSingleFile('index.html', finalHtml, 'html');
+      }
+
+      return isCompleteHtml ? finalHtml : next;
     });
   }, [pushHistory, fileSync]);
 
@@ -411,8 +468,47 @@ export default function Home() {
     const { type, ...data } = event.data;
     if (type === 'nextinai-select') {
       setSelectedElement(data as SelectedElement);
+    } else if (type === 'nextinai-navigate') {
+      const targetPath = data.path;
+      // Normalize path
+      let normalizedPath = targetPath.startsWith('/') ? targetPath : `/${targetPath}`;
+
+      // Handle root path
+      if (normalizedPath === '/') {
+        normalizedPath = '/index.html';
+      }
+
+      // Try to find exact match first
+      const projectManager = ProjectManager.getInstance();
+      let file = projectManager.getFileByPath(normalizedPath);
+
+      // If not found, try adding .html extension
+      if (!file && !normalizedPath.endsWith('.html')) {
+        file = projectManager.getFileByPath(`${normalizedPath}.html`);
+      }
+
+      // If still not found, try adding /index.html (for folder paths)
+      if (!file) {
+        file = projectManager.getFileByPath(`${normalizedPath}/index.html`.replace('//', '/'));
+      }
+
+      if (file && file.content) {
+        setHtmlContent(file.content);
+        pushHistory(file.content);
+        try {
+          projectManager.setActiveFile(file.id);
+        } catch (e) {
+          console.warn('Failed to set active file:', e);
+        }
+      } else {
+        toast({
+          title: 'Page not found',
+          description: `Could not find page: ${targetPath}`,
+          variant: 'destructive',
+        });
+      }
     }
-  }, []);
+  }, [pushHistory, toast]);
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -426,6 +522,26 @@ export default function Home() {
   // Initialize default project on mount
   useEffect(() => {
     initializeDefaultProject();
+  }, []);
+
+  // Sync with ProjectManager
+  useEffect(() => {
+    const projectManager = ProjectManager.getInstance();
+    const unsubscribe = projectManager.subscribe((project) => {
+      if (project.activeFileId) {
+        const file = projectManager.findNodePublic(project.activeFileId);
+        if (file && file.type === 'file') {
+          if (file.language === 'html') {
+            setHtmlContent(file.content || '');
+          } else if (file.language === 'css') {
+            setCssContent(file.content || '');
+          } else if (file.language === 'javascript' || file.language === 'js') {
+            setJsContent(file.content || '');
+          }
+        }
+      }
+    });
+    return unsubscribe;
   }, []);
 
   const htmlFileForCode = `<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charSet="UTF-8" />\n  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n  <title>Next Inai Page</title>\n  <link rel="stylesheet" href="styles.css" />\n</head>\n<body>\n${formatHtml(htmlContent)}\n  <script src="script.js"></script>\n</body>\n</html>`;

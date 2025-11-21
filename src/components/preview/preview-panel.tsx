@@ -51,7 +51,9 @@ const interactionScript = String.raw`(() => {
     window.addEventListener('message', (event) => {
       const data = event.data || {};
       if (data && data.type === 'nextinai-select-mode') {
+        console.log('[NextInai] Received select-mode message:', data.enabled);
         selectionEnabled = !!data.enabled;
+        console.log('[NextInai] Selection mode is now:', selectionEnabled);
         if (!selectionEnabled && lastHovered) {
           if (lastHovered.removeAttribute) {
             lastHovered.removeAttribute('data-nextinai-hover');
@@ -77,13 +79,57 @@ const interactionScript = String.raw`(() => {
     });
 
     body.addEventListener('click', (e) => {
-      if (!selectionEnabled) return;
+      console.log('[NextInai] Click detected, selectionEnabled:', selectionEnabled);
+      
+      if (!selectionEnabled) {
+        // Handle navigation when not in selection mode
+        const target = e.target;
+        const link = target.closest ? target.closest('a') : null;
+        
+        if (link) {
+          const href = link.getAttribute('href');
+          
+          // Skip empty links or anchor jumps
+          if (!href || href.startsWith('#') || href.startsWith('mailto:')) return;
+          
+          // Check if it's an internal link
+          try {
+            const url = new URL(link.href);
+            if (url.origin === window.location.origin) {
+              e.preventDefault();
+              e.stopPropagation();
+              
+              // Send the path relative to the root
+              sendMessage({
+                type: 'nextinai-navigate',
+                path: url.pathname + url.search + url.hash
+              });
+            }
+          } catch (err) {
+            // If URL parsing fails, fall back to attribute check
+            if (href && !href.startsWith('http')) {
+              e.preventDefault();
+              sendMessage({
+                type: 'nextinai-navigate',
+                path: href
+              });
+            }
+          }
+        }
+        return;
+      }
+
+      // Selection mode handling
+      console.log('[NextInai] Selection mode active, processing click');
       e.preventDefault();
       e.stopPropagation();
 
       document.querySelectorAll('[data-nextinai-selected]').forEach(el => el.removeAttribute('data-nextinai-selected'));
       const target = e.target;
-      if (!isValidTarget(target, body)) return;
+      if (!isValidTarget(target, body)) {
+        console.log('[NextInai] Invalid target');
+        return;
+      }
 
       target.setAttribute('data-nextinai-selected', 'true');
 
@@ -97,12 +143,13 @@ const interactionScript = String.raw`(() => {
         current = parent;
       }
 
+      console.log('[NextInai] Sending select message with path:', path);
       sendMessage({
         type: 'nextinai-select',
         path,
         textContent: target.innerText,
         tagName: target.tagName,
-        classNames: (target.className || '').replace(/data-nextinai-\w+/g, '').trim(),
+        classNames: (target.className || '').replace(/data-nextinai-\\w+/g, '').trim(),
       });
     }, true);
 
@@ -175,8 +222,50 @@ export const PreviewPanel = forwardRef<HTMLIFrameElement, PreviewPanelProps>((pr
 
   useImperativeHandle(ref, () => iframeRef.current as HTMLIFrameElement);
 
-  // Build srcdoc - keep minimal but deterministic
+  // Build srcdoc - handle both complete HTML and body-only content
   const buildSrcDoc = useCallback((h: string, c: string, j: string) => {
+    // Check if h is a complete HTML document
+    const isCompleteHtml = h.trim().startsWith('<!DOCTYPE') || h.trim().startsWith('<html');
+
+    if (isCompleteHtml) {
+      // Use complete HTML, but inject CSS, JS, and interaction script
+      let modifiedHtml = h;
+
+      // 1. Inject CSS content if provided
+      if (c && c.trim()) {
+        const headCloseIndex = modifiedHtml.toLowerCase().indexOf('</head>');
+        if (headCloseIndex !== -1) {
+          modifiedHtml =
+            modifiedHtml.substring(0, headCloseIndex) +
+            `  <style>\n${c}\n  </style>\n` +
+            modifiedHtml.substring(headCloseIndex);
+        }
+      }
+
+      // 2. Inject interaction script before </head>
+      const headCloseIndex2 = modifiedHtml.toLowerCase().indexOf('</head>');
+      if (headCloseIndex2 !== -1) {
+        modifiedHtml =
+          modifiedHtml.substring(0, headCloseIndex2) +
+          `  <script>${interactionScript}</script>\n` +
+          modifiedHtml.substring(headCloseIndex2);
+      }
+
+      // 3. Inject JavaScript before </body>
+      if (j && j.trim()) {
+        const bodyCloseIndex = modifiedHtml.toLowerCase().lastIndexOf('</body>');
+        if (bodyCloseIndex !== -1) {
+          modifiedHtml =
+            modifiedHtml.substring(0, bodyCloseIndex) +
+            `  <script>\n    try {\n      ${j}\n    } catch(e) { console.error('Preview JS execution error:', e); }\n  </script>\n` +
+            modifiedHtml.substring(bodyCloseIndex);
+        }
+      }
+
+      return modifiedHtml;
+    }
+
+    // For body-only content, wrap with full HTML structure (backward compatibility)
     return `<!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
@@ -306,11 +395,10 @@ export const PreviewPanel = forwardRef<HTMLIFrameElement, PreviewPanelProps>((pr
       <button
         type="button"
         onClick={onToggleSelectMode}
-        className={`absolute bottom-4 right-4 flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold shadow-lg transition-colors ${
-          isSelectMode
-            ? 'bg-primary text-primary-foreground'
-            : 'bg-gray-900/80 text-gray-100 border border-gray-700 hover:bg-gray-800/90'
-        }`}
+        className={`absolute bottom-4 right-4 flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold shadow-lg transition-colors ${isSelectMode
+          ? 'bg-primary text-primary-foreground'
+          : 'bg-gray-900/80 text-gray-100 border border-gray-700 hover:bg-gray-800/90'
+          }`}
       >
         <span
           className={`inline-block h-2 w-2 rounded-full ${isSelectMode ? 'bg-emerald-400' : 'bg-gray-400'}`}
