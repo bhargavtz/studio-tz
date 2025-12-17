@@ -459,16 +459,17 @@ export default function Home() {
   }, [pushHistory, fileSync]);
 
   const handleMessage = useCallback((event: MessageEvent) => {
-    // Basic security: check the origin of the message
-    // In a real app, you'd want to make this more secure, e.g., event.origin === 'your-iframe-origin'
-    if (event.source !== iframeRef.current?.contentWindow) {
+    const { type, ...data } = event.data;
+
+    // Handle element selection
+    if (type === 'nextinai-select') {
+      console.log('[Builder] Received select event:', data);
+      setSelectedElement(data as SelectedElement);
       return;
     }
 
-    const { type, ...data } = event.data;
-    if (type === 'nextinai-select') {
-      setSelectedElement(data as SelectedElement);
-    } else if (type === 'nextinai-navigate') {
+    // Handle navigation
+    if (type === 'nextinai-navigate') {
       const targetPath = data.path;
       // Normalize path
       let normalizedPath = targetPath.startsWith('/') ? targetPath : `/${targetPath}`;

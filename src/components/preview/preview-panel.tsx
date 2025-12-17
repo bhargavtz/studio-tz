@@ -20,8 +20,121 @@ declare global {
 // Interaction script injected inside the iframe. Scoped with an IIFE and safer DOM checks.
 const interactionScript = String.raw`(() => {
   const style = document.createElement('style');
-  // Sanitize CSS content to prevent XSS
-  const cssContent = "[data-nextinai-hover] { outline: 2px dashed #3B82F6 !important; cursor: pointer !important; transition: outline 0.1s ease-in-out; animation: nextinai-shake 0.5s ease-in-out; }\\n[data-nextinai-selected] { outline: 2px solid #93C5FD !important; box-shadow: 0 0 15px rgba(59, 130, 246, 0.5) !important; }\\n@keyframes nextinai-shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-2px); } 75% { transform: translateX(2px); } }";
+  // Enhanced CSS with corner highlights and custom cursor
+  const cssContent = \`
+    /* Selection mode cursor */
+    body.nextinai-selection-mode * {
+      cursor: crosshair !important;
+    }
+    
+    /* Hover state with corner highlights */
+    [data-nextinai-hover] {
+      position: relative !important;
+      outline: 2px solid #3B82F6 !important;
+      outline-offset: 2px !important;
+      transition: all 0.2s ease-in-out !important;
+      box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1) !important;
+    }
+    
+    /* Corner highlights for hovered elements */
+    [data-nextinai-hover]::before,
+    [data-nextinai-hover]::after {
+      content: '' !important;
+      position: absolute !important;
+      width: 12px !important;
+      height: 12px !important;
+      border: 3px solid #3B82F6 !important;
+      z-index: 999999 !important;
+      pointer-events: none !important;
+    }
+    
+    [data-nextinai-hover]::before {
+      top: -2px !important;
+      left: -2px !important;
+      border-right: none !important;
+      border-bottom: none !important;
+    }
+    
+    [data-nextinai-hover]::after {
+      bottom: -2px !important;
+      right: -2px !important;
+      border-left: none !important;
+      border-top: none !important;
+    }
+    
+    /* Selected state with all 4 corners */
+    [data-nextinai-selected] {
+      position: relative !important;
+      outline: 3px solid #10B981 !important;
+      outline-offset: 2px !important;
+      box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.2), 0 0 20px rgba(16, 185, 129, 0.3) !important;
+      animation: nextinai-pulse 2s ease-in-out infinite !important;
+    }
+    
+    /* All 4 corner highlights for selected element */
+    [data-nextinai-selected]::before,
+    [data-nextinai-selected]::after {
+      content: '' !important;
+      position: absolute !important;
+      width: 16px !important;
+      height: 16px !important;
+      border: 4px solid #10B981 !important;
+      z-index: 999999 !important;
+      pointer-events: none !important;
+      animation: nextinai-corner-glow 1.5s ease-in-out infinite !important;
+    }
+    
+    [data-nextinai-selected]::before {
+      top: -4px !important;
+      left: -4px !important;
+      border-right: none !important;
+      border-bottom: none !important;
+    }
+    
+    [data-nextinai-selected]::after {
+      bottom: -4px !important;
+      right: -4px !important;
+      border-left: none !important;
+      border-top: none !important;
+    }
+    
+    /* Additional corners using box-shadow trick */
+    [data-nextinai-selected] {
+      box-shadow: 
+        -4px -4px 0 0 #10B981,
+        4px -4px 0 0 #10B981,
+        -4px 4px 0 0 #10B981,
+        4px 4px 0 0 #10B981,
+        0 0 0 4px rgba(16, 185, 129, 0.2),
+        0 0 20px rgba(16, 185, 129, 0.3) !important;
+    }
+    
+    @keyframes nextinai-pulse {
+      0%, 100% { 
+        box-shadow: 
+          -4px -4px 0 0 #10B981,
+          4px -4px 0 0 #10B981,
+          -4px 4px 0 0 #10B981,
+          4px 4px 0 0 #10B981,
+          0 0 0 4px rgba(16, 185, 129, 0.2),
+          0 0 20px rgba(16, 185, 129, 0.3);
+      }
+      50% { 
+        box-shadow: 
+          -4px -4px 0 0 #10B981,
+          4px -4px 0 0 #10B981,
+          -4px 4px 0 0 #10B981,
+          4px 4px 0 0 #10B981,
+          0 0 0 6px rgba(16, 185, 129, 0.3),
+          0 0 30px rgba(16, 185, 129, 0.5);
+      }
+    }
+    
+    @keyframes nextinai-corner-glow {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+  \`;
   style.textContent = cssContent;
   document.head.appendChild(style);
 
@@ -30,9 +143,10 @@ const interactionScript = String.raw`(() => {
 
   const sendMessage = (payload) => {
     try { 
-      // Security: Only send messages to parent window with specific origin validation
+      // For srcdoc iframes, we need to use '*' as targetOrigin
       if (window.parent && window.parent !== window) {
-        window.parent.postMessage(payload, window.location.origin);
+        console.log('[Iframe] Sending message to parent:', payload.type);
+        window.parent.postMessage(payload, '*');
       }
     } catch (e) { 
       console.warn('Failed to send message to parent:', e);
@@ -42,6 +156,15 @@ const interactionScript = String.raw`(() => {
   // Only observe element nodes
   function isValidTarget(t, body) {
     return t && t.nodeType === 1 && t !== body && t.tagName;
+  }
+  
+  // Update body class based on selection mode
+  function updateSelectionMode(enabled) {
+    if (enabled) {
+      document.body.classList.add('nextinai-selection-mode');
+    } else {
+      document.body.classList.remove('nextinai-selection-mode');
+    }
   }
 
   const setupBodyListeners = () => {
@@ -53,6 +176,7 @@ const interactionScript = String.raw`(() => {
       if (data && data.type === 'nextinai-select-mode') {
         console.log('[NextInai] Received select-mode message:', data.enabled);
         selectionEnabled = !!data.enabled;
+        updateSelectionMode(selectionEnabled);
         console.log('[NextInai] Selection mode is now:', selectionEnabled);
         if (!selectionEnabled && lastHovered) {
           if (lastHovered.removeAttribute) {
@@ -74,6 +198,7 @@ const interactionScript = String.raw`(() => {
     });
 
     body.addEventListener('mouseout', (e) => {
+      if (!selectionEnabled) return;
       const t = e.target;
       if (t && t.removeAttribute) t.removeAttribute('data-nextinai-hover');
     });
@@ -315,10 +440,11 @@ export const PreviewPanel = forwardRef<HTMLIFrameElement, PreviewPanelProps>((pr
         setIframeHeight(`${Math.min(2000, Math.max(300, data.height))}px`);
       }
 
-      if (data.type === 'nextinai-select') {
-        // Create custom event with proper data structure
-        const event = new CustomEvent('nextinai-select', { detail: data });
-        window.dispatchEvent(event);
+      // Forward all nextinai messages to parent window for handling
+      if (data.type && data.type.startsWith('nextinai-')) {
+        console.log('[PreviewPanel] Forwarding message:', data.type, data);
+        // Re-dispatch the message so parent can handle it
+        window.postMessage(data, '*');
       }
     };
 
@@ -356,9 +482,8 @@ export const PreviewPanel = forwardRef<HTMLIFrameElement, PreviewPanelProps>((pr
       const win = iframeRef.current?.contentWindow;
       if (!win) return;
       try {
-        // Security: Use specific origin instead of wildcard
-        const targetOrigin = window.location.origin;
-        win.postMessage({ type: 'nextinai-select-mode', enabled: isSelectMode }, targetOrigin);
+        // For sandboxed iframes, use '*' as targetOrigin since they don't have same-origin
+        win.postMessage({ type: 'nextinai-select-mode', enabled: isSelectMode }, '*');
       } catch (e) {
         console.warn('Failed to send select mode message:', e);
       }
