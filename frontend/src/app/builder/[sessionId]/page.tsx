@@ -33,6 +33,7 @@ export default function BuilderPage() {
 
     const [chatMessage, setChatMessage] = useState('');
     const [chatHistory, setChatHistory] = useState<Array<{ role: 'user' | 'ai'; content: string }>>([]);
+    const [isTyping, setIsTyping] = useState(false);
     const [activeTab, setActiveTab] = useState<'chat' | 'theme' | 'pages' | 'assets' | 'code'>('chat');
     const [deviceMode, setDeviceMode] = useState<'desktop' | 'mobile'>('desktop');
     const [viewMode, setViewMode] = useState<'preview' | 'code'>('preview');
@@ -145,21 +146,42 @@ export default function BuilderPage() {
     };
 
     const handleSendMessage = async () => {
-        if (!chatMessage.trim()) return;
+        if (!chatMessage.trim() || isTyping) return;
 
         const userMessage = chatMessage;
         setChatMessage('');
         setChatHistory(prev => [...prev, { role: 'user', content: userMessage }]);
+        setIsTyping(true);
+
+        // Auto-scroll to bottom
+        setTimeout(() => {
+            const chatContainer = document.querySelector(`.${styles.chatMessages}`);
+            if (chatContainer) {
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+        }, 100);
 
         try {
             const result = await api.chatEdit(sessionId, userMessage);
+            setIsTyping(false);
             setChatHistory(prev => [...prev, { role: 'ai', content: result.message }]);
 
             if (result.success && result.preview_url) {
-                setPreviewUrl(`${config.apiUrl}${result.preview_url}`);
+                // Force iframe reload with timestamp
+                const timestamp = new Date().getTime();
+                setPreviewUrl(`${config.apiUrl}${result.preview_url}?t=${timestamp}`);
             }
+
+            // Auto-scroll after AI response
+            setTimeout(() => {
+                const chatContainer = document.querySelector(`.${styles.chatMessages}`);
+                if (chatContainer) {
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                }
+            }, 100);
         } catch (err) {
             console.error('Chat edit failed:', err);
+            setIsTyping(false);
             setChatHistory(prev => [...prev, {
                 role: 'ai',
                 content: 'Sorry, I couldn\'t process that request. Please try again.'
@@ -500,24 +522,41 @@ export default function BuilderPage() {
                                         <div className={styles.chatMessages}>
                                             {chatHistory.length === 0 ? (
                                                 <div className={styles.chatWelcome}>
-                                                    <p>✨ Edit with AI</p>
-                                                    <p>Chat to make changes to your website</p>
-                                                    <button onClick={() => setChatMessage("Change the heading color to red")}>
-                                                        "Change the heading color to red"
+                                                    <p>✨ AI Website Editor</p>
+                                                    <p>बोलो क्या बदलना है - कुछ भी!</p>
+                                                    <button onClick={() => setChatMessage("Add a hero section with a big heading and button")}>
+                                                        "Add hero section"
                                                     </button>
-                                                    <button onClick={() => setChatMessage("Make the button blue")}>
-                                                        "Make the button blue"
+                                                    <button onClick={() => setChatMessage("Add 3 images in a gallery")}>
+                                                        "Add image gallery"
                                                     </button>
-                                                    <button onClick={() => setChatMessage("Update the main title text to My Site")}>
-                                                        "Update the main title text"
+                                                    <button onClick={() => setChatMessage("Add a contact form with name, email and message fields")}>
+                                                        "Add contact form"
+                                                    </button>
+                                                    <button onClick={() => setChatMessage("Make it look more modern with gradients")}>
+                                                        "Make it modern"
+                                                    </button>
+                                                    <button onClick={() => setChatMessage("Add a features section with 3 cards")}>
+                                                        "Add features section"
                                                     </button>
                                                 </div>
                                             ) : (
-                                                chatHistory.map((msg, i) => (
-                                                    <div key={i} className={`${styles.chatMessage} ${styles[msg.role]}`}>
-                                                        {msg.content}
-                                                    </div>
-                                                ))
+                                                <>
+                                                    {chatHistory.map((msg, i) => (
+                                                        <div key={i} className={`${styles.chatMessage} ${styles[msg.role]} ${styles.slideIn}`}>
+                                                            {msg.content}
+                                                        </div>
+                                                    ))}
+                                                    {isTyping && (
+                                                        <div className={`${styles.chatMessage} ${styles.ai} ${styles.slideIn}`}>
+                                                            <div className={styles.typingIndicator}>
+                                                                <span></span>
+                                                                <span></span>
+                                                                <span></span>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </>
                                             )}
                                         </div>
                                     )}
@@ -552,7 +591,7 @@ export default function BuilderPage() {
                                     <div className={styles.chatInput}>
                                         <input
                                             type="text"
-                                            placeholder="Describe your change..."
+                                            placeholder="कुछ भी बोलो - section add करो, image डालो, layout बदलो..."
                                             value={chatMessage}
                                             onChange={(e) => setChatMessage(e.target.value)}
                                             onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}

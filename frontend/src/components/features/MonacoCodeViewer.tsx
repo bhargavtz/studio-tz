@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import styles from './MonacoCodeViewer.module.css';
 import * as api from '@/lib/api';
+import { FileTree } from '@/components/ui/file-tree';
 
 interface MonacoCodeViewerProps {
     sessionId: string;
@@ -15,46 +16,106 @@ interface CodeFile {
     content: string;
 }
 
+interface FileNode {
+    name: string;
+    type: 'file' | 'folder';
+    children?: FileNode[];
+    extension?: string;
+}
+
 export default function MonacoCodeViewer({ sessionId }: MonacoCodeViewerProps) {
     const [files, setFiles] = useState<CodeFile[]>([]);
     const [selectedFile, setSelectedFile] = useState<CodeFile | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [fileTree, setFileTree] = useState<FileNode[]>([]);
 
     useEffect(() => {
         loadFiles();
     }, [sessionId]);
 
+    const buildFileTree = (fileList: CodeFile[]): FileNode[] => {
+        const root: FileNode[] = [];
+        const folders: Map<string, FileNode> = new Map();
+
+        fileList.forEach(file => {
+            const parts = file.path.split('/');
+
+            if (parts.length === 1) {
+                // Root level file
+                root.push({
+                    name: file.path,
+                    type: 'file',
+                    extension: file.path.split('.').pop()
+                });
+            } else {
+                // File in folder
+                const folderName = parts[0];
+                const fileName = parts.slice(1).join('/');
+
+                if (!folders.has(folderName)) {
+                    const folderNode: FileNode = {
+                        name: folderName,
+                        type: 'folder',
+                        children: []
+                    };
+                    folders.set(folderName, folderNode);
+                    root.push(folderNode);
+                }
+
+                folders.get(folderName)!.children!.push({
+                    name: fileName,
+                    type: 'file',
+                    extension: fileName.split('.').pop()
+                });
+            }
+        });
+
+        return root;
+    };
+
     const loadFiles = async () => {
         try {
             setLoading(true);
+            console.log('Loading files for session:', sessionId);
             const preview = await api.getPreviewUrl(sessionId);
+            console.log('Preview data:', preview);
             const fileList = preview.files || [];
+            console.log('File list:', fileList);
 
             // Load content for each file
             const loadedFiles: CodeFile[] = [];
             for (const filePath of fileList) {
                 try {
+                    console.log('Loading file:', filePath);
                     const fileData = await api.getFileContent(sessionId, filePath);
+                    console.log('File data for', filePath, ':', fileData);
                     loadedFiles.push({
                         path: filePath,
                         type: fileData.file_type as 'html' | 'css' | 'javascript',
-                        content: fileData.content
+                        content: fileData.content || '// No content available'
                     });
                 } catch (err) {
                     console.error(`Failed to load ${filePath}:`, err);
                 }
             }
 
+            console.log('Loaded files:', loadedFiles);
             setFiles(loadedFiles);
+
+            // Build file tree
+            const tree = buildFileTree(loadedFiles);
+            setFileTree(tree);
+
             if (loadedFiles.length > 0) {
                 // Select index.html by default
                 const indexFile = loadedFiles.find(f => f.path === 'index.html') || loadedFiles[0];
+                console.log('Selected file:', indexFile);
                 setSelectedFile(indexFile);
             }
         } catch (err) {
             setError('Failed to load code files');
-            console.error(err);
+            console.error('Load files error:', err);
         } finally {
             setLoading(false);
         }
@@ -96,6 +157,13 @@ export default function MonacoCodeViewer({ sessionId }: MonacoCodeViewerProps) {
         URL.revokeObjectURL(url);
     };
 
+    const handleFileSelect = (path: string) => {
+        const file = files.find(f => f.path === path);
+        if (file) {
+            setSelectedFile(file);
+        }
+    };
+
     if (loading) {
         return (
             <div className={styles.loading}>
@@ -115,76 +183,76 @@ export default function MonacoCodeViewer({ sessionId }: MonacoCodeViewerProps) {
 
     return (
         <div className={styles.monacoViewer}>
-            {/* File Tabs */}
-            <div className={styles.fileTabs}>
-                {files.map((file) => (
-                    <button
-                        key={file.path}
-                        className={`${styles.fileTab} ${selectedFile?.path === file.path ? styles.active : ''}`}
-                        onClick={() => setSelectedFile(file)}
-                    >
-                        <span className={styles.fileIcon}>{getFileIcon(file.path)}</span>
-                        <span className={styles.fileName}>{file.path}</span>
-                    </button>
-                ))}
+            {/* File Tree Sidebar */}
+            <div className={styles.sidebar}>
+                <FileTree
+                    data={fileTree}
+                    onFileSelect={handleFileSelect}
+                    className="h-full w-full rounded-none border-none bg-transparent p-0"
+                />
             </div>
 
-            {/* Editor Header */}
-            {selectedFile && (
-                <div className={styles.editorHeader}>
-                    <div className={styles.fileInfo}>
-                        <span className={styles.fileIcon}>{getFileIcon(selectedFile.path)}</span>
-                        <span className={styles.filePath}>{selectedFile.path}</span>
-                        <span className={styles.fileType}>{selectedFile.type.toUpperCase()}</span>
-                    </div>
-                    <div className={styles.actions}>
-                        <button onClick={handleCopy} className={styles.actionBtn}>
-                            📋 Copy
-                        </button>
-                        <button onClick={handleDownload} className={styles.actionBtn}>
-                            ⬇ Download
-                        </button>
-                    </div>
-                </div>
-            )}
+            {/* Editor Section */}
+            <div className={styles.editorSection}>
 
-            {/* Monaco Editor */}
-            {selectedFile && (
-                <div className={styles.editorContainer}>
-                    <Editor
-                        height="100%"
-                        language={getLanguage(selectedFile.type)}
-                        value={selectedFile.content}
-                        theme="vs-dark"
-                        loading={
-                            <div className={styles.loading}>
-                                <div className={styles.spinner}></div>
-                                <p>Loading editor...</p>
+                {/* Editor Header */}
+                {selectedFile && (
+                    <div className={styles.editorHeader}>
+                        <div className={styles.tabContainer}>
+                            <div className={styles.activeTab}>
+                                <span className={styles.fileIcon}>{getFileIcon(selectedFile.path)}</span>
+                                <span className={styles.filePath}>{selectedFile.path}</span>
                             </div>
-                        }
-                        options={{
-                            readOnly: true,
-                            minimap: { enabled: true },
-                            fontSize: 14,
-                            lineNumbers: 'on',
-                            scrollBeyondLastLine: false,
-                            automaticLayout: true,
-                            wordWrap: 'on',
-                            folding: true,
-                            renderWhitespace: 'selection',
-                            bracketPairColorization: { enabled: true },
-                            scrollbar: {
-                                vertical: 'visible',
-                                horizontal: 'visible',
-                            },
-                        }}
-                        onMount={(editor, monaco) => {
-                            // Editor mounted successfully
-                            console.log('Monaco Editor mounted');
-                        }}
-                    />
-                </div>
-            )}
+                        </div>
+                        <div className={styles.actions}>
+                            <button onClick={handleCopy} className={styles.actionBtn} title="Copy to Clipboard">
+                                📋
+                            </button>
+                            <button onClick={handleDownload} className={styles.actionBtn} title="Download File">
+                                ⬇
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Monaco Editor */}
+                {selectedFile && (
+                    <div className={styles.editorContainer}>
+                        <Editor
+                            height="100%"
+                            language={getLanguage(selectedFile.type)}
+                            value={selectedFile.content || '// No content'}
+                            theme="vs-dark"
+                            loading={
+                                <div className={styles.loading}>
+                                    <div className={styles.spinner}></div>
+                                    <p>Loading editor...</p>
+                                </div>
+                            }
+                            options={{
+                                readOnly: true,
+                                minimap: { enabled: true },
+                                fontSize: 14,
+                                lineNumbers: 'on',
+                                scrollBeyondLastLine: false,
+                                automaticLayout: true,
+                                wordWrap: 'on',
+                                folding: true,
+                                renderWhitespace: 'selection',
+                                bracketPairColorization: { enabled: true },
+                                scrollbar: {
+                                    vertical: 'visible',
+                                    horizontal: 'visible',
+                                },
+                            }}
+                            onMount={(editor, monaco) => {
+                                // Editor mounted successfully
+                                console.log('Monaco Editor mounted with content:', selectedFile.content?.substring(0, 100));
+                            }}
+                        />
+                    </div>
+                )}
+            </div>
         </div>
     );
 }

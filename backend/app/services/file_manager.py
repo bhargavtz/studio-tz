@@ -80,15 +80,33 @@ class FileManager:
         return False
     
     def list_files(self, session_id: str, extensions: Optional[List[str]] = None) -> List[str]:
-        """List all files in a session's project."""
+        """List all files in a session's project (excluding internal metadata files)."""
         session_path = self.get_session_path(session_id)
         
         if not session_path.exists():
             return []
         
+        # Internal files that should not be shown to users
+        INTERNAL_FILES = {
+            'answers.json',
+            'blueprint.json',
+            'domain.json',
+            'questions.json',
+            'session.json',
+            'vision.json'
+        }
+        
         files = []
         for path in session_path.rglob("*"):
             if path.is_file():
+                # Skip internal metadata files
+                if path.name in INTERNAL_FILES:
+                    continue
+                
+                # Skip backup directory
+                if '.backups' in path.parts:
+                    continue
+                
                 relative = path.relative_to(session_path)
                 if extensions is None or path.suffix in extensions:
                     files.append(str(relative))
@@ -100,16 +118,31 @@ class FileManager:
         return f"/projects/session_{session_id}/index.html"
     
     def create_zip(self, session_id: str) -> bytes:
-        """Create a ZIP archive of the session's project."""
+        """Create a ZIP archive of the session's project (excluding internal metadata)."""
         session_path = self.get_session_path(session_id)
+        
+        # Internal files that should not be included in download
+        INTERNAL_FILES = {
+            'answers.json',
+            'blueprint.json',
+            'domain.json',
+            'questions.json',
+            'session.json',
+            'vision.json'
+        }
         
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
             for file_path in session_path.rglob("*"):
                 if file_path.is_file():
-                    # Skip session metadata files
-                    if file_path.name in ["session.json"]:
+                    # Skip internal metadata files
+                    if file_path.name in INTERNAL_FILES:
                         continue
+                    
+                    # Skip backup directory
+                    if '.backups' in file_path.parts:
+                        continue
+                    
                     arcname = file_path.relative_to(session_path)
                     zf.write(file_path, arcname)
         

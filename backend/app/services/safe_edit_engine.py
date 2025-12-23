@@ -81,8 +81,53 @@ class SafeEditEngine:
         new_value: str
     ) -> Dict[str, Any]:
         """Safely update a CSS property for scoped selector."""
-        with open(file_path, 'r', encoding='utf-8') as f:
-            css_content = f.read()
+        # Check if we should redirect to styles/main.css
+        # If file_path is index.html, look for styles/main.css
+        target_path = file_path
+        
+        if file_path.suffix == '.html':
+            potential_css = file_path.parent / 'styles' / 'main.css'
+            if potential_css.exists():
+                target_path = potential_css
+        
+        is_html = target_path.suffix == '.html'
+        
+        if is_html:
+            with open(target_path, 'r', encoding='utf-8') as f:
+                soup = BeautifulSoup(f, 'html.parser')
+            
+            # Find the style tag containing our scoped styles
+            style_tag = None
+            for tag in soup.find_all('style'):
+                if tag.string and 'NCD Scoped Styles' in tag.string:
+                    style_tag = tag
+                    break
+            
+            if not style_tag:
+                # Look for any style tag or create new
+                style_tags = soup.find_all('style')
+                if style_tags:
+                    style_tag = style_tags[-1]
+                else:
+                    head = soup.find('head')
+                    if not head:
+                        if soup.html:
+                            head = soup.new_tag('head')
+                            soup.html.insert(0, head)
+                        else:
+                            # Edge case: empty file
+                            soup.append(soup.new_tag('html'))
+                            head = soup.new_tag('head')
+                            soup.html.append(head)
+                            
+                    style_tag = soup.new_tag('style')
+                    style_tag.string = "/* NCD Scoped Styles */\n"
+                    head.append(style_tag)
+            
+            css_content = style_tag.string or ""
+        else:
+            with open(target_path, 'r', encoding='utf-8') as f:
+                css_content = f.read()
         
         # Selector for this specific element
         selector = f'[data-ncd-id="{ncd_id}"]'
@@ -127,8 +172,13 @@ class SafeEditEngine:
             new_rule = f'\n{selector} {{\n  {property_name}: {new_value};\n}}\n'
             new_css = css_content + new_rule
         
-        with open(file_path, 'w', encoding='utf-8') as f:
-            f.write(new_css)
+        if is_html:
+            style_tag.string = new_css
+            with open(target_path, 'w', encoding='utf-8') as f:
+                f.write(str(soup.prettify()))
+        else:
+            with open(target_path, 'w', encoding='utf-8') as f:
+                f.write(new_css)
         
         return {
             "success": True,

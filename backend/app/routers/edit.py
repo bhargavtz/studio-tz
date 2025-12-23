@@ -108,7 +108,7 @@ async def structured_edit(session_id: str, request: StructuredEditRequest):
         
         elif action == "UPDATE_STYLE":
             # Determine CSS file
-            css_file = session_dir / "styles" / "main.css"
+            css_file = session_dir / "styles/main.css"
             result = safe_edit_engine.update_css_property(
                 css_file,
                 request.ncd_id,
@@ -292,7 +292,7 @@ class ChatEditResponse(BaseModel):
 
 @router.post("/edit/{session_id}/chat", response_model=ChatEditResponse)
 async def chat_edit(session_id: str, request: ChatEditRequest):
-    """Apply edits via natural language chat (simplified)."""
+    """Apply ANY edits via natural language - add sections, images, change layout, anything!"""
     session = session_manager.get_session(session_id)
     
     if not session:
@@ -305,168 +305,55 @@ async def chat_edit(session_id: str, request: ChatEditRequest):
         )
     
     try:
-        # Simple pattern matching for common edit requests
-        message = request.message.lower()
+        from app.services.advanced_groq_editor import advanced_editor
+        
+        # Get current files
+        html_content = file_manager.read_file(session_id, "index.html") or ""
+        css_content = file_manager.read_file(session_id, "styles.css") or ""
+        
+        print(f"User request: {request.message}")
+        
+        # Use Advanced AI to modify entire website
+        result = await advanced_editor.modify_website(
+            user_request=request.message,
+            current_html=html_content,
+            current_css=css_content
+        )
+        
+        if not result['success']:
+            return ChatEditResponse(
+                success=False,
+                changes=[],
+                message=result['message'],
+                preview_url=file_manager.get_preview_url(session_id)
+            )
+        
+        # Save modified files
         changes = []
         
-        import re
+        # Save HTML
+        file_manager.write_file(session_id, "index.html", result['html'])
+        changes.append({
+            "file": "index.html",
+            "change_type": "modified",
+            "description": "Updated HTML based on AI modifications"
+        })
         
-        # Enhanced patterns to match more variations
-        patterns = [
-            # "update/change the [element] text/color to [value]"
-            r"(?:update|change)\s+(?:the\s+)?(.+?)\s+(?:text|color|to)\s+(.+)",
-            # "make the [element] [value]"
-            r"make\s+(?:the\s+)?(.+?)\s+(.+)",
-            # "[element] should be [value]"
-            r"(.+?)\s+should\s+be\s+(.+)",
-            # "set [element] to [value]"
-            r"set\s+(?:the\s+)?(.+?)\s+to\s+(.+)",
-        ]
+        # Save CSS if extracted
+        if result.get('css'):
+            file_manager.write_file(session_id, "styles.css", result['css'])
+            changes.append({
+                "file": "styles.css",
+                "change_type": "modified",
+                "description": "Updated CSS styles"
+            })
         
-        match = None
-        for pattern in patterns:
-            match = re.search(pattern, message, re.IGNORECASE)
-            if match:
-                break
+        success_message = f"✓ {result['description']}\n\n{result['message']}"
         
-        if match:
-            element_part = match.group(1).strip()
-            new_value = match.group(2).strip()
-            
-            # Enhanced element mapping
-            selector_map = {
-                "title": "h1",
-                "heading": "h1",
-                "main title": "h1",
-                "main heading": "h1",
-                "header": "h1",
-                "h1": "h1",
-                "button": "button",
-                "btn": "button",
-                "background": "body",
-                "background color": "body",
-                "bg": "body",
-                "text": "body",
-                "body text": "body",
-                "paragraph": "p",
-                "p": "p",
-                "link": "a",
-                "links": "a",
-            }
-            
-            # Try to find matching selector
-            selector = None
-            for key, value in selector_map.items():
-                if key in element_part:
-                    selector = value
-                    break
-            
-            if not selector:
-                selector = element_part  # Use as-is if no match
-            
-            # Determine edit type based on keywords
-            edit_type = "text"
-            style_property = None
-            
-            if any(word in message for word in ["color", "colour"]):
-                edit_type = "style"
-                style_property = "color"
-            elif any(word in message for word in ["background", "bg"]):
-                edit_type = "style"
-                style_property = "background-color"
-            elif "text" not in message or any(word in message for word in ["make", "set"]):
-                # If it's "make button red" without "text", assume it's style
-                if any(color in new_value for color in ["red", "blue", "green", "yellow", "black", "white", "purple", "orange", "pink", "gray", "grey"]):
-                    edit_type = "style"
-                    style_property = "background-color"
-            
-            # Try to apply the edit
-            try:
-                if edit_type == "style" and style_property:
-                    # For style edits, we need to modify CSS or inline styles
-                    html_content = file_manager.read_file(session_id, "index.html") or ""
-                    
-                    # Simple approach: add inline style
-                    from bs4 import BeautifulSoup
-                    soup = BeautifulSoup(html_content, 'html.parser')
-                    
-                    elements = soup.select(selector)
-                    if elements:
-                        for elem in elements[:1]:  # Apply to first match
-                            current_style = elem.get('style', '')
-                            # Remove existing property if present
-                            style_dict = {}
-                            if current_style:
-                                for item in current_style.split(';'):
-                                    if ':' in item:
-                                        key, val = item.split(':', 1)
-                                        style_dict[key.strip()] = val.strip()
-                            
-                            style_dict[style_property] = new_value
-                            new_style = '; '.join([f"{k}: {v}" for k, v in style_dict.items()])
-                            elem['style'] = new_style
-                        
-                        # Save modified HTML
-                        file_manager.write_file(session_id, "index.html", str(soup))
-                        
-                        changes.append(FileChange(
-                            file="index.html",
-                            change_type="modified",
-                            description=f"Updated {element_part} {style_property}"
-                        ))
-                        
-                        edit_history.add_edit(
-                            session_id=session_id,
-                            edit_type="chat",
-                            description=request.message,
-                            changes=[{"file": "index.html", "type": "modified"}]
-                        )
-                        
-                        return ChatEditResponse(
-                            success=True,
-                            changes=changes,
-                            message=f"✓ Updated the {element_part} {style_property} to {new_value}!",
-                            preview_url=file_manager.get_preview_url(session_id)
-                        )
-                else:
-                    # Text edit
-                    html_content = file_manager.read_file(session_id, "index.html") or ""
-                    from bs4 import BeautifulSoup
-                    soup = BeautifulSoup(html_content, 'html.parser')
-                    
-                    elements = soup.select(selector)
-                    if elements:
-                        elements[0].string = new_value
-                        file_manager.write_file(session_id, "index.html", str(soup))
-                        
-                        changes.append(FileChange(
-                            file="index.html",
-                            change_type="modified",
-                            description=f"Updated {element_part} text"
-                        ))
-                        
-                        edit_history.add_edit(
-                            session_id=session_id,
-                            edit_type="chat",
-                            description=request.message,
-                            changes=[{"file": "index.html", "type": "modified"}]
-                        )
-                        
-                        return ChatEditResponse(
-                            success=True,
-                            changes=changes,
-                            message=f"✓ Updated the {element_part} to '{new_value}'!",
-                            preview_url=file_manager.get_preview_url(session_id)
-                        )
-                    
-            except Exception as e:
-                print(f"Edit application error: {e}")
-        
-        # If we couldn't parse or apply the edit
         return ChatEditResponse(
-            success=False,
-            changes=[],
-            message="I couldn't understand that request. Try:\n• 'Change the heading to Welcome'\n• 'Make the button red'\n• 'Update the title text to My Site'",
+            success=True,
+            changes=changes,
+            message=success_message,
             preview_url=file_manager.get_preview_url(session_id)
         )
         
@@ -477,6 +364,6 @@ async def chat_edit(session_id: str, request: ChatEditRequest):
         return ChatEditResponse(
             success=False,
             changes=[],
-            message=f"Sorry, something went wrong. Please try again.",
+            message=f"Error: {str(e)}",
             preview_url=file_manager.get_preview_url(session_id)
         )

@@ -57,12 +57,12 @@ async def get_blueprint(session_id: str):
     session.blueprint = blueprint
     session.status = SessionStatus.BLUEPRINT_GENERATED
     
-    # Save blueprint
-    session_manager.save_json_file(
-        session_id,
-        "blueprint.json",
-        blueprint
-    )
+    # Stop saving separate blueprint.json as per user request
+    # session_manager.save_json_file(
+    #     session_id,
+    #     "blueprint.json",
+    #     blueprint
+    # )
     
     session_manager.update_session(session)
     

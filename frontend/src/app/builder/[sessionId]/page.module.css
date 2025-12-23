@@ -1,5 +1,6 @@
 .builder {
-    min-height: 100vh;
+    height: 100vh;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
     background: var(--bg-primary);
@@ -472,7 +473,8 @@
     flex: 1;
     display: grid;
     grid-template-columns: 1fr 350px;
-    height: calc(100vh - 65px);
+    height: 100%;
+    overflow: hidden;
 }
 
 .previewContainer.codeMode {
@@ -568,6 +570,14 @@
     box-shadow: 0 0 0 8px #1f1f1f, 0 0 0 10px #333, var(--shadow-lg);
 }
 
+.codeEditorWrapper {
+    flex: 1;
+    height: 100%;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
 /* Chat Panel */
 .chatPanel {
     display: flex;
@@ -634,6 +644,9 @@
     border-radius: var(--radius-md);
     font-size: 0.9rem;
     max-width: 90%;
+    animation: slideIn 0.3s ease-out;
+    word-wrap: break-word;
+    white-space: pre-wrap;
 }
 
 .chatMessage.user {
@@ -740,6 +753,64 @@
     to {
         opacity: 1;
         transform: translateY(0);
+    }
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.slideIn {
+    animation: slideIn 0.3s ease-out;
+}
+
+/* Typing Indicator */
+.typingIndicator {
+    display: flex;
+    gap: 0.25rem;
+    padding: 0.25rem 0;
+}
+
+.typingIndicator span {
+    width: 8px;
+    height: 8px;
+    background: var(--text-muted);
+    border-radius: 50%;
+    animation: typingBounce 1.4s infinite ease-in-out;
+}
+
+.typingIndicator span:nth-child(1) {
+    animation-delay: 0s;
+}
+
+.typingIndicator span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.typingIndicator span:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes typingBounce {
+
+    0%,
+    60%,
+    100% {
+        transform: translateY(0);
+        opacity: 0.7;
+    }
+
+    30% {
+        transform: translateY(-10px);
+        opacity: 1;
     }
 }
 

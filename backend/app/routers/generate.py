@@ -56,7 +56,6 @@ async def generate_website(session_id: str):
     # Safety: Enforce correct paths in HTML
     import re
     if "html" in code:
-        # Fix CSS link
         code["html"] = re.sub(
             r'<link[^>]+href=["\'](?!styles/main\.css)[^"\']+\.css["\'][^>]*>',
             '<link rel="stylesheet" href="styles/main.css">',

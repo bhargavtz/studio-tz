@@ -12,61 +12,60 @@ from langchain_core.output_parsers import JsonOutputParser
 from app.config import settings
 
 
-CODE_GENERATOR_PROMPT = """You are an expert frontend developer.
-Your task is to generate production-ready HTML, CSS, and JavaScript code from a website blueprint.
+CODE_GENERATOR_PROMPT = """You are an **AWARD-WINNING FRONTEND ENGINEER & MOTION DESIGNER**.
+Your task is to take a blueprint and transform it into a **Production-Ready, High-Performance, and visually STUNNING website**.
 
 Blueprint:
 {blueprint}
 
-Generate clean, semantic, responsive code following these rules:
+### 🏆 EXPERT STANDARDS (STRICT):
+1.  **Tech Stack**:
+    - HTML5 (Semantic, Accessible, SEO-optimized). usage of `<section>`, `<article>`, `<nav>` is MANDATORY.
+    - Vanilla CSS with **Tailwind CSS (CDN)**.
+    - **Custom CSS** is REQUIRED for animations, glassmorphism, and unique polish.
+    - Vanilla JS (ES6+) for smooth interactions. NO JQuery. NO React.
 
-HTML:
-- Use semantic HTML5 elements (header, nav, main, section, footer)
-- Include proper meta tags for SEO
-- Add meaningful class names for styling
-- MUST link CSS exactly as: <link rel="stylesheet" href="styles/main.css">
-- MUST link JS exactly as: <script src="scripts/main.js"></script>
-- Use relative paths for images: src="assets/image.jpg" (NOT /assets/)
-- Make it accessible (alt tags, aria labels where needed)
+2.  **Zero-Boredom Policy**:
+    - EVERY interactive element (buttons, cards, links) MUST have a `:hover` and `:active` state.
+    - Use `transition-all duration-300` for smooth effects.
+    - Elements should "fade in" or "slide up" on scroll (using IntersectionObserver in JS).
 
-CSS:
-- Use CSS custom properties for theme colors
-- Mobile-first responsive design
-- Smooth animations and transitions
-- Modern layout with flexbox/grid
-- Clean, organized structure with comments
+3.  **Visual Excellence**:
+    - **Glassmorphism**: Use `backdrop-filter: blur(12px)` and semi-transparent backgrounds for modern cards/navbars.
+    - **Typography**: Use the requested font, but ensure proper `line-height`, `letter-spacing`, and hierarchy.
+    - **Whitespace**: Use generous padding/margin. Do not cram content.
+    - **Hero Section**: Must be `min-h-screen`, vertically centered, with a compelling background (gradient or placeholder image).
 
-JavaScript:
-- Vanilla JavaScript only (no frameworks)
-- Handle form submissions
-- Add smooth scrolling
-- Mobile menu toggle
-- Any interactive features needed
+4.  **Content Intelligence**:
+    - **NEVER** output raw data structures (e.g., `['a', 'b']`). Always render as Lists or Grids.
+    - If no image is provided, use a stylish CSS Gradient placeholder, not a broken link.
+    - Navbar: Must be `fixed` top, glassmorphism style, with mobile hamburger menu functioning perfectly.
 
-Theme to apply:
-- Primary: {primaryColor}
-- Secondary: {secondaryColor}
-- Background: {backgroundColor}
-- Text: {textColor}
-- Accent: {accentColor}
-- Font: {fontFamily}
-- Style: {style}
+### 🎨 DESIGN SYSTEM:
+- **Theme**:
+  * Primary: {primaryColor}
+  * Background: {backgroundColor}
+  * Text: {textColor}
+  * Font: {fontFamily}
+- **Style**: Execute the "{style}" look with precision.
+  - If "Minimal": Use lots of white space, thin borders.
+  - If "Bold": Use large text, high contrast, solid shadows.
 
-Generate code as a JSON object:
+### 📂 OUTPUT FORMAT (JSON ONLY):
+Return a single JSON object. NO markdown.
 {{
-    "html": "<!DOCTYPE html>...",
-    "css": "/* styles */...",
-    "js": "// scripts..."
+    "html": "<!DOCTYPE html>... <link rel='stylesheet' href='styles/main.css'> ... <script src='scripts/main.js'></script> ...",
+    "css": "/* styles/main.css */\n:root {{ ... }} \n/* Custom Animations */\n@keyframes fadeInUp {{ ... }} ...",
+    "js": "// scripts/main.js \n// Mobile Menu Logic \n// Scroll Animations ..."
 }}
 
-Requirements:
-1. The website must look professional and polished
-2. All sections from the blueprint must be included
-3. Use real content from the blueprint (not lorem ipsum)
-4. Make sure colors and fonts match the theme
-5. Add subtle hover effects and transitions
+### 🚀 FINAL CHECKS:
+1.  **Mobile Responsive**: Grid columns must collapse to 1 on mobile (`grid-cols-1 md:grid-cols-3`).
+2.  **No Dead Links**: Navigation links should scroll to sections (`href="#about"`).
+3.  **Console-Free**: Write robust JS that doesn't error if an element is missing.
 
-Respond ONLY with valid JSON containing the complete code."""
+Build it like you are trying to win an Awwwards Site of the Day.
+Respond ONLY with valid JSON."""
 
 
 class CodeGeneratorAgent:
@@ -113,8 +112,7 @@ class CodeGeneratorAgent:
             })
             
             # Post-process: Inject NCD attributes
-            result = self._inject_ncd_attributes(result, blueprint)
-            return result
+            return self._inject_ncd_attributes(result, blueprint)
         except Exception as e:
             print(f"Code generation error: {e}")
             fallback = self._generate_fallback_code(blueprint)
@@ -123,7 +121,6 @@ class CodeGeneratorAgent:
     def _inject_ncd_attributes(self, code: Dict[str, str], blueprint: Dict[str, Any]) -> Dict[str, str]:
         """Inject data-ncd-* attributes into HTML and create scoped CSS."""
         from bs4 import BeautifulSoup
-        import uuid
         
         html = code.get("html", "")
         css = code.get("css", "")
@@ -140,6 +137,7 @@ class CodeGeneratorAgent:
         for tag in soup.find_all(editable_tags):
             # Skip if already has ncd-id
             if tag.get('data-ncd-id'):
+                ncd_ids.append(tag.get('data-ncd-id'))
                 continue
             
             component_counter += 1
@@ -168,11 +166,14 @@ class CodeGeneratorAgent:
         code['html'] = str(soup.prettify())
         
         # Add scoped CSS rules for each NCD ID
-        scoped_css = "\n\n/* NCD Scoped Styles */\n"
-        for ncd_id in ncd_ids:
-            scoped_css += f"[data-ncd-id=\"{ncd_id}\"] {{\n  /* Editable element */\n}}\n\n"
-        
-        code['css'] = css + scoped_css
+        # Only add if not already present to avoid duplication
+        if "/* NCD Scoped Styles */" not in css:
+            scoped_css = "\n\n/* NCD Scoped Styles */\n"
+            for ncd_id in ncd_ids:
+                scoped_css += f"[data-ncd-id=\"{ncd_id}\"] {{\n  /* Editable element */\n}}\n\n"
+            
+            # Append scoped CSS to main CSS file instead of inline
+            code['css'] = css + scoped_css
         
         return code
     
@@ -186,103 +187,111 @@ class CodeGeneratorAgent:
         name = blueprint.get("name", "My Website")
         theme = blueprint.get("theme", {})
         
+        # HTML Content
         html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{name}</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Main CSS -->
     <link rel="stylesheet" href="styles/main.css">
+    <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family={theme.get('fontFamily', 'Inter')}:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
-<body>
-    <header class="header">
-        <nav class="nav container">
-            <a href="/" class="logo">{name}</a>
-            <button class="mobile-menu-btn" aria-label="Toggle menu">
-                <span></span>
-                <span></span>
-                <span></span>
+<body class="bg-gray-50 text-gray-900">
+    <header class="header fixed w-full top-0 z-50 transition-all duration-300">
+        <nav class="container mx-auto px-6 py-4 flex justify-between items-center">
+            <a href="/" class="text-2xl font-bold text-primary">{name}</a>
+            <button class="mobile-menu-btn md:hidden" aria-label="Toggle menu">
+                <span class="block w-6 h-0.5 bg-current mb-1"></span>
+                <span class="block w-6 h-0.5 bg-current mb-1"></span>
+                <span class="block w-6 h-0.5 bg-current"></span>
             </button>
-            <ul class="nav-links">
-                <li><a href="#home">Home</a></li>
-                <li><a href="#about">About</a></li>
-                <li><a href="#services">Services</a></li>
-                <li><a href="#contact">Contact</a></li>
+            <ul class="nav-links hidden md:flex space-x-8">
+                <li><a href="#home" class="hover:text-primary transition-colors">Home</a></li>
+                <li><a href="#about" class="hover:text-primary transition-colors">About</a></li>
+                <li><a href="#services" class="hover:text-primary transition-colors">Services</a></li>
+                <li><a href="#contact" class="hover:text-primary transition-colors">Contact</a></li>
             </ul>
         </nav>
     </header>
 
     <main>
-        <section id="home" class="hero">
-            <div class="container">
-                <h1>Welcome to {name}</h1>
-                <p>Your trusted partner for excellence</p>
-                <a href="#contact" class="btn btn-primary">Get Started</a>
+        <section id="home" class="hero min-h-screen flex items-center justify-center text-center pt-20 bg-gradient-to-br from-primary to-secondary text-white">
+            <div class="container mx-auto px-6">
+                <h1 class="text-5xl md:text-6xl font-bold mb-6 animate-fade-up">Welcome to {name}</h1>
+                <p class="text-xl md:text-2xl mb-8 opacity-90">Your trusted partner for excellence</p>
+                <a href="#contact" class="btn btn-primary bg-white text-primary px-8 py-3 rounded-lg font-semibold hover:shadow-lg transform hover:-translate-y-1 transition-all">Get Started</a>
             </div>
         </section>
 
-        <section id="about" class="about">
-            <div class="container">
-                <h2>About Us</h2>
-                <p>We are dedicated to providing the best service possible.</p>
+        <section id="about" class="about py-20 bg-white">
+            <div class="container mx-auto px-6">
+                <h2 class="text-3xl md:text-4xl font-bold text-center mb-12 text-gray-800">About Us</h2>
+                <div class="max-w-3xl mx-auto text-center text-lg text-gray-600">
+                    <p>We are dedicated to providing the best service possible. Our team of experts is here to help you achieve your goals.</p>
+                </div>
             </div>
         </section>
 
-        <section id="services" class="services">
-            <div class="container">
-                <h2>Our Services</h2>
-                <div class="services-grid">
-                    <div class="service-card">
-                        <h3>Service One</h3>
-                        <p>Description of our first service.</p>
+        <section id="services" class="services py-20 bg-gray-50">
+            <div class="container mx-auto px-6">
+                <h2 class="text-3xl md:text-4xl font-bold text-center mb-12 text-gray-800">Our Services</h2>
+                <div class="grid md:grid-cols-3 gap-8">
+                    <div class="service-card bg-white p-8 rounded-xl shadow-sm hover:shadow-md transition-shadow">
+                        <h3 class="text-xl font-bold mb-4 text-primary">Service One</h3>
+                        <p class="text-gray-600">Description of our first service.</p>
                     </div>
-                    <div class="service-card">
-                        <h3>Service Two</h3>
-                        <p>Description of our second service.</p>
+                    <div class="service-card bg-white p-8 rounded-xl shadow-sm hover:shadow-md transition-shadow">
+                        <h3 class="text-xl font-bold mb-4 text-primary">Service Two</h3>
+                        <p class="text-gray-600">Description of our second service.</p>
                     </div>
-                    <div class="service-card">
-                        <h3>Service Three</h3>
-                        <p>Description of our third service.</p>
+                    <div class="service-card bg-white p-8 rounded-xl shadow-sm hover:shadow-md transition-shadow">
+                        <h3 class="text-xl font-bold mb-4 text-primary">Service Three</h3>
+                        <p class="text-gray-600">Description of our third service.</p>
                     </div>
                 </div>
             </div>
         </section>
 
-        <section id="contact" class="contact">
-            <div class="container">
-                <h2>Contact Us</h2>
-                <form class="contact-form" id="contactForm">
+        <section id="contact" class="contact py-20 bg-white">
+            <div class="container mx-auto px-6">
+                <h2 class="text-3xl md:text-4xl font-bold text-center mb-12 text-gray-800">Contact Us</h2>
+                <form class="contact-form max-w-lg mx-auto space-y-6" id="contactForm">
                     <div class="form-group">
-                        <label for="name">Name</label>
-                        <input type="text" id="name" name="name" required>
+                        <label for="name" class="block mb-2 font-medium">Name</label>
+                        <input type="text" id="name" name="name" required class="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all">
                     </div>
                     <div class="form-group">
-                        <label for="email">Email</label>
-                        <input type="email" id="email" name="email" required>
+                        <label for="email" class="block mb-2 font-medium">Email</label>
+                        <input type="email" id="email" name="email" required class="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all">
                     </div>
                     <div class="form-group">
-                        <label for="message">Message</label>
-                        <textarea id="message" name="message" rows="5" required></textarea>
+                        <label for="message" class="block mb-2 font-medium">Message</label>
+                        <textarea id="message" name="message" rows="5" required class="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"></textarea>
                     </div>
-                    <button type="submit" class="btn btn-primary">Send Message</button>
+                    <button type="submit" class="w-full btn btn-primary bg-primary text-white py-3 rounded-lg font-semibold hover:bg-secondary transition-colors">Send Message</button>
                 </form>
             </div>
         </section>
     </main>
 
-    <footer class="footer">
-        <div class="container">
+    <footer class="footer bg-gray-900 text-white py-8 text-center">
+        <div class="container mx-auto px-6">
             <p>&copy; 2024 {name}. All rights reserved.</p>
         </div>
     </footer>
 
+    <!-- Main JS -->
     <script src="scripts/main.js"></script>
 </body>
 </html>"""
 
+        # CSS Content
         css = f"""/* NCD INAI Generated Styles */
-
 :root {{
     --primary: {theme.get('primaryColor', '#3B82F6')};
     --secondary: {theme.get('secondaryColor', '#1E40AF')};
@@ -292,236 +301,21 @@ class CodeGeneratorAgent:
     --font-family: '{theme.get('fontFamily', 'Inter')}', sans-serif;
 }}
 
-* {{
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}}
-
-html {{
-    scroll-behavior: smooth;
-}}
-
 body {{
     font-family: var(--font-family);
-    background: var(--background);
-    color: var(--text);
-    line-height: 1.6;
 }}
 
-.container {{
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 0 20px;
+/* Custom styles complementing Tailwind */
+.header.scrolled {{
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }}
 
-/* Header */
-.header {{
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    background: var(--background);
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    z-index: 1000;
-}}
-
-.nav {{
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 1rem 20px;
-}}
-
-.logo {{
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--primary);
-    text-decoration: none;
-}}
-
-.nav-links {{
-    display: flex;
-    list-style: none;
-    gap: 2rem;
-}}
-
-.nav-links a {{
-    color: var(--text);
-    text-decoration: none;
-    font-weight: 500;
-    transition: color 0.3s ease;
-}}
-
-.nav-links a:hover {{
-    color: var(--primary);
-}}
-
-.mobile-menu-btn {{
-    display: none;
-    flex-direction: column;
-    gap: 5px;
-    background: none;
-    border: none;
-    cursor: pointer;
-}}
-
-.mobile-menu-btn span {{
-    width: 25px;
-    height: 3px;
-    background: var(--text);
-    transition: 0.3s;
-}}
-
-/* Hero Section */
-.hero {{
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
-    color: white;
-    padding-top: 80px;
-}}
-
-.hero h1 {{
-    font-size: 3.5rem;
-    margin-bottom: 1rem;
-    animation: fadeInUp 0.8s ease;
-}}
-
-.hero p {{
-    font-size: 1.25rem;
-    margin-bottom: 2rem;
-    opacity: 0.9;
-}}
-
-/* Buttons */
-.btn {{
-    display: inline-block;
-    padding: 0.875rem 2rem;
-    border-radius: 8px;
-    font-weight: 600;
-    text-decoration: none;
-    transition: all 0.3s ease;
-    cursor: pointer;
-    border: none;
-    font-size: 1rem;
-}}
-
-.btn-primary {{
-    background: white;
-    color: var(--primary);
-}}
-
-.btn-primary:hover {{
-    transform: translateY(-2px);
-    box-shadow: 0 10px 20px rgba(0,0,0,0.2);
-}}
-
-/* Sections */
-section {{
-    padding: 5rem 0;
-}}
-
-section h2 {{
-    font-size: 2.5rem;
-    text-align: center;
-    margin-bottom: 3rem;
-    color: var(--text);
-}}
-
-/* About */
-.about {{
-    background: #f8fafc;
-}}
-
-.about p {{
-    text-align: center;
-    max-width: 700px;
-    margin: 0 auto;
-    font-size: 1.125rem;
-}}
-
-/* Services */
-.services-grid {{
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 2rem;
-}}
-
-.service-card {{
-    background: white;
-    padding: 2rem;
-    border-radius: 12px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-    transition: transform 0.3s ease;
-}}
-
-.service-card:hover {{
-    transform: translateY(-5px);
-}}
-
-.service-card h3 {{
-    color: var(--primary);
-    margin-bottom: 1rem;
-}}
-
-/* Contact */
-.contact {{
-    background: #f8fafc;
-}}
-
-.contact-form {{
-    max-width: 600px;
-    margin: 0 auto;
-    background: white;
-    padding: 2rem;
-    border-radius: 12px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-}}
-
-.form-group {{
-    margin-bottom: 1.5rem;
-}}
-
-.form-group label {{
-    display: block;
-    margin-bottom: 0.5rem;
-    font-weight: 500;
-}}
-
-.form-group input,
-.form-group textarea {{
-    width: 100%;
-    padding: 0.875rem;
-    border: 2px solid #e2e8f0;
-    border-radius: 8px;
-    font-size: 1rem;
-    font-family: inherit;
-    transition: border-color 0.3s ease;
-}}
-
-.form-group input:focus,
-.form-group textarea:focus {{
-    outline: none;
-    border-color: var(--primary);
-}}
-
-/* Footer */
-.footer {{
-    background: var(--text);
-    color: white;
-    padding: 2rem 0;
-    text-align: center;
-}}
-
-/* Animations */
 @keyframes fadeInUp {{
     from {{
         opacity: 0;
-        transform: translateY(30px);
+        transform: translateY(20px);
     }}
     to {{
         opacity: 1;
@@ -529,59 +323,51 @@ section h2 {{
     }}
 }}
 
-/* Mobile Responsive */
-@media (max-width: 768px) {{
-    .mobile-menu-btn {{
-        display: flex;
-    }}
-    
-    .nav-links {{
-        position: absolute;
-        top: 100%;
-        left: 0;
-        right: 0;
-        background: var(--background);
-        flex-direction: column;
-        padding: 1rem;
-        gap: 1rem;
-        display: none;
-        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
-    }}
-    
-    .nav-links.active {{
-        display: flex;
-    }}
-    
-    .hero h1 {{
-        font-size: 2.5rem;
-    }}
-    
-    section {{
-        padding: 3rem 0;
-    }}
-}}"""
+.animate-fade-up {{
+    animation: fadeInUp 0.8s ease-out forwards;
+}}
+"""
 
-        js = """// NCD INAI Generated Scripts
-
-document.addEventListener('DOMContentLoaded', function() {
+        # JS Content
+        js = """document.addEventListener('DOMContentLoaded', function() {
     // Mobile menu toggle
     const mobileMenuBtn = document.querySelector('.mobile-menu-btn');
     const navLinks = document.querySelector('.nav-links');
     
     if (mobileMenuBtn && navLinks) {
         mobileMenuBtn.addEventListener('click', function() {
-            navLinks.classList.toggle('active');
+            navLinks.classList.toggle('hidden');
+            navLinks.classList.toggle('flex');
+            navLinks.classList.toggle('flex-col');
+            navLinks.classList.toggle('absolute');
+            navLinks.classList.toggle('top-full');
+            navLinks.classList.toggle('left-0');
+            navLinks.classList.toggle('w-full');
+            navLinks.classList.toggle('bg-white');
+            navLinks.classList.toggle('p-6');
+            navLinks.classList.toggle('shadow-lg');
+            
+            // Hamburger to X animation
+            const spans = mobileMenuBtn.querySelectorAll('span');
+            if (spans.length === 3) {
+                 // Simple toggle implementation can be improved
+            }
         });
     }
-    
-    // Close mobile menu when clicking a link
-    document.querySelectorAll('.nav-links a').forEach(link => {
-        link.addEventListener('click', () => {
-            navLinks.classList.remove('active');
+
+    // Header scroll effect
+    const header = document.querySelector('.header');
+    if (header) {
+        window.addEventListener('scroll', () => {
+            if (window.scrollY > 20) {
+                header.classList.add('scrolled');
+            } else {
+                header.classList.remove('scrolled');
+            }
         });
-    });
-    
-    // Smooth scroll for anchor links
+    }
+
+    // Smooth scroll
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {
         anchor.addEventListener('click', function(e) {
             e.preventDefault();
@@ -591,31 +377,21 @@ document.addEventListener('DOMContentLoaded', function() {
                     behavior: 'smooth',
                     block: 'start'
                 });
+                // Close mobile menu if open
+                if (navLinks && !navLinks.classList.contains('hidden')) {
+                    mobileMenuBtn.click();
+                }
             }
         });
     });
-    
-    // Contact form handling
+
+    // Contact form
     const contactForm = document.getElementById('contactForm');
     if (contactForm) {
         contactForm.addEventListener('submit', function(e) {
             e.preventDefault();
             alert('Thank you for your message! We will get back to you soon.');
             this.reset();
-        });
-    }
-    
-    // Header scroll effect
-    const header = document.querySelector('.header');
-    if (header) {
-        window.addEventListener('scroll', () => {
-            if (window.scrollY > 100) {
-                header.style.background = 'rgba(255, 255, 255, 0.95)';
-                header.style.backdropFilter = 'blur(10px)';
-            } else {
-                header.style.background = 'var(--background)';
-                header.style.backdropFilter = 'none';
-            }
         });
     }
 });"""

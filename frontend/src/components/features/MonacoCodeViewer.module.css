@@ -1,137 +1,165 @@
+/* Premium Glassmorphism Code Panel */
 .monacoViewer {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    height: 100%;
+    background: #09090b;
+    /* Deep background for editor contrast */
+    color: #e4e4e7;
+    font-family: 'Geist Mono', 'Fira Code', 'Consolas', monospace;
+    overflow: hidden;
+    border-radius: 0;
+    /* Fit seamlessly */
+}
+
+/* Glassy Sidebar */
+.sidebar {
+    background: linear-gradient(180deg, rgba(24, 24, 27, 0.95) 0%, rgba(9, 9, 11, 0.98) 100%);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    /* Subtle border */
+    display: flex;
+    flex-direction: column;
+    backdrop-filter: blur(10px);
+}
+
+.sidebarHeader {
+    padding: 1.25rem 1.5rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #a1a1aa;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.sidebarHeader::before {
+    content: '';
+    display: block;
+    width: 6px;
+    height: 6px;
+    background: #6366f1;
+    /* Indigo accent */
+    border-radius: 50%;
+    box-shadow: 0 0 8px rgba(99, 102, 241, 0.5);
+}
+
+/* Editor Main Section */
+.editorSection {
     display: flex;
     flex-direction: column;
     height: 100%;
-    background: #1e1e1e;
-    color: #d4d4d4;
-}
-
-/* File Tabs */
-.fileTabs {
-    display: flex;
-    gap: 0;
-    background: #252526;
-    border-bottom: 1px solid #3c3c3c;
-    overflow-x: auto;
-    flex-shrink: 0;
-}
-
-.fileTabs::-webkit-scrollbar {
-    height: 3px;
-}
-
-.fileTabs::-webkit-scrollbar-track {
-    background: #252526;
-}
-
-.fileTabs::-webkit-scrollbar-thumb {
-    background: #3c3c3c;
-}
-
-.fileTab {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.75rem 1rem;
-    background: transparent;
-    border: none;
-    border-right: 1px solid #3c3c3c;
-    color: #969696;
-    font-size: 0.8125rem;
-    cursor: pointer;
-    transition: all 0.15s;
-    white-space: nowrap;
+    background: #09090b;
+    /* Match editor bg */
+    min-width: 0;
     position: relative;
 }
 
-.fileTab:hover {
-    background: #2a2d2e;
-    color: #ffffff;
+/* Sleek Tab Header */
+.editorHeader {
+    display: flex;
+    align-items: flex-end;
+    /* Tabs sit on bottom */
+    justify-content: space-between;
+    height: 48px;
+    background: rgba(9, 9, 11, 0.8);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 0 1rem 0 0;
 }
 
-.fileTab.active {
-    background: #1e1e1e;
-    color: #ffffff;
+.tabContainer {
+    display: flex;
+    height: 100%;
+    overflow-x: auto;
+    align-items: flex-end;
 }
 
-.fileTab.active::after {
+.activeTab {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0 1.5rem;
+    height: 100%;
+    /* Full height */
+    background: #09090b;
+    /* Seamless with editor */
+    border-top: 2px solid #6366f1;
+    /* Top accent */
+    border-right: 1px solid rgba(255, 255, 255, 0.05);
+    border-left: 1px solid rgba(255, 255, 255, 0.05);
+    color: #fff;
+    font-size: 0.85rem;
+    font-weight: 500;
+    position: relative;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+}
+
+/* Glowing text effect for active tab */
+.activeTab::after {
     content: '';
     position: absolute;
-    bottom: 0;
+    top: 0;
     left: 0;
     right: 0;
-    height: 2px;
-    background: #007acc;
+    height: 15px;
+    background: linear-gradient(180deg, rgba(99, 102, 241, 0.15) 0%, transparent 100%);
+    pointer-events: none;
 }
 
 .fileIcon {
-    font-size: 1rem;
-    flex-shrink: 0;
-}
-
-.fileName {
-    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-}
-
-/* Editor Header */
-.editorHeader {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.5rem 1rem;
-    background: #252526;
-    border-bottom: 1px solid #3c3c3c;
-    flex-shrink: 0;
-}
-
-.fileInfo {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
+    opacity: 1;
+    font-size: 1.1em;
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.2));
 }
 
 .filePath {
-    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-    font-size: 0.8125rem;
-    color: #cccccc;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: 0.02em;
 }
 
-.fileType {
-    padding: 0.125rem 0.5rem;
-    background: #3c3c3c;
-    border-radius: 3px;
-    font-size: 0.6875rem;
-    color: #969696;
-    font-weight: 600;
-    text-transform: uppercase;
-}
-
+/* Floating Actions Toolbar */
 .actions {
     display: flex;
+    align-items: center;
     gap: 0.5rem;
+    padding-bottom: 0.5rem;
+    /* Center vertically in header */
 }
 
 .actionBtn {
-    padding: 0.375rem 0.75rem;
-    background: #3c3c3c;
-    border: 1px solid #454545;
-    border-radius: 3px;
-    color: #cccccc;
-    font-size: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    color: #a1a1aa;
+    font-size: 1rem;
     cursor: pointer;
-    transition: all 0.15s;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .actionBtn:hover {
-    background: #505050;
-    border-color: #007acc;
+    background: rgba(99, 102, 241, 0.1);
+    border-color: rgba(99, 102, 241, 0.2);
+    color: #fff;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 /* Editor Container */
 .editorContainer {
     flex: 1;
     overflow: hidden;
-    background: #1e1e1e;
+    position: relative;
+    background: #09090b;
+    /* Deep black/zinc */
 }
 
 /* Loading & Empty States */
@@ -142,26 +170,44 @@
     align-items: center;
     justify-content: center;
     height: 100%;
-    gap: 1rem;
-    color: #969696;
-    background: #1e1e1e;
+    gap: 1.5rem;
+    color: #71717a;
+    background: #09090b;
+    font-size: 0.95rem;
+    letter-spacing: 0.02em;
 }
 
 .spinner {
-    width: 40px;
-    height: 40px;
-    border: 3px solid #3c3c3c;
-    border-top-color: #007acc;
+    width: 32px;
+    height: 32px;
+    border: 3px solid rgba(255, 255, 255, 0.1);
+    border-top-color: #6366f1;
     border-radius: 50%;
-    animation: spin 0.8s linear infinite;
+    animation: spin 1s cubic-bezier(0.55, 0.055, 0.675, 0.19) infinite;
 }
 
 @keyframes spin {
-    from {
-        transform: rotate(0deg);
-    }
-
     to {
         transform: rotate(360deg);
     }
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    transition: background 0.2s;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
 }

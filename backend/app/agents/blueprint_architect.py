@@ -13,51 +13,38 @@ from app.config import settings
 from app.models.session import DomainClassification
 
 
-BLUEPRINT_ARCHITECT_PROMPT = """You are an expert website architect and UX designer.
-Your task is to create a detailed website blueprint based on the client's requirements.
+BLUEPRINT_ARCHITECT_PROMPT = """You are a WORLD-RENOWNED WEBSITE ARCHITECT & UX VISIONARY.
+Your task is to correct and elevate the client's vision into a MASTERPIECE BLUEPRINT.
 
-Business Details:
+You are designing a Premium, Award-Winning Website for:
 - Domain: {domain}
 - Industry: {industry}
-- Original Intent: {intent}
+- Client Intent: {intent}
 
-Client's Answers:
+Client Answers:
 {answers}
 
-Create a comprehensive website blueprint that includes:
-1. All necessary pages for this type of business
-2. Well-structured sections for each page
-3. Appropriate components within each section
-4. A cohesive theme and style based on their preferences
+YOUR MANDATE:
+1.  **Orchestrate the User Journey**: Don't just list pages. Create a flow that guides users from "Interest" to "Action".
+2.  **Strategic Sections**:
+    - Reject generic "About" or "Services" labels if they are boring. Rename them excitingly (e.g., "Our Legacy", "Craftsmanship", "Why Choose Us").
+    - Include "Social Proof" (Testimonials, Logos) early in the journey.
+    - ESSENTIAL: Every page MUST have a clear Call-to-Action (CTA).
+3.  **Visual Language**:
+    - Select a theme that fits the *industry* but stands out. (e.g., A law firm should be 'Trustworthy' but 'Modern', not 'Boring').
+    - Suggest deep, rich color palettes or sophisticated gradients.
+4.  **Content Depth**:
+    - For each section, define the key components precisely.
+    - Use "Cards", "Grids", "Parallax Headers", and "Sticky Navigations" where they add value.
 
-Section types to use:
-- hero: Main banner with headline and CTA
-- about: About the business
-- services: Services or products offered
-- features: Key features/benefits
-- gallery: Image gallery/portfolio
-- testimonials: Customer reviews
-- team: Team members
-- pricing: Pricing tables
-- contact: Contact form and info
-- cta: Call to action sections
-- footer: Footer with links
+STRUCTURE REQUIREMENTS:
+- **Pages**: Home, About, [Industry Specific Page], [Industry Specific Page], Contact.
+- **Home Page**: Must be a "Showstopper". Hero -> Value Props -> Feature Highlight -> Social Proof -> CTA -> Footer.
 
-Component types to use:
-- heading: Text heading (h1, h2, etc.)
-- paragraph: Text content
-- button: CTA button
-- image: Image element
-- card: Content card
-- form: Contact/signup form
-- list: Bulleted/numbered list
-- icon: Icon element
-- map: Location map
-
-Create a blueprint as a JSON object with this structure:
+Create the Blueprint JSON:
 {{
-    "name": "Business Name Website",
-    "description": "Brief description of the website",
+    "name": "Business Name",
+    "description": "A high-conversion, premium digital experience.",
     "domain": "{domain}",
     "pages": [
         {{
@@ -68,16 +55,16 @@ Create a blueprint as a JSON object with this structure:
                 {{
                     "id": "hero",
                     "type": "hero",
-                    "title": "Section title",
+                    "title": "Hero Section",
                     "components": [
                         {{
                             "id": "hero-heading",
                             "type": "heading",
-                            "content": "Actual headline text",
-                            "properties": {{"level": "h1"}}
+                            "content": "Compelling Headline Here",
+                            "properties": {{"level": "h1", "highlight": true}}
                         }}
                     ],
-                    "properties": {{}}
+                    "properties": {{"layout": "full-screen", "alignment": "center"}}
                 }}
             ],
             "meta": {{"title": "...", "description": "..."}}
@@ -89,23 +76,17 @@ Create a blueprint as a JSON object with this structure:
         "backgroundColor": "#hex",
         "textColor": "#hex",
         "accentColor": "#hex",
-        "fontFamily": "Font name",
-        "style": "modern|classic|minimal|bold"
+        "fontFamily": "Font Name",
+        "style": "glassmorphism|minimalist_luxury|bold_brutalist|soft_modern"
     }},
     "global_styles": {{
-        "borderRadius": "8px",
-        "spacing": "comfortable",
-        "animation": "subtle"
+        "borderRadius": "12px",
+        "spacing": "relaxed",
+        "animation": "smooth-reveal"
     }}
 }}
 
-Make sure:
-- Content reflects the actual business details from their answers
-- Include real placeholder text based on their business
-- Theme colors match their stated preferences
-- Structure is logical for their industry
-
-Respond ONLY with valid JSON."""
+Respond ONLY with valid JSON. Do not include markdown blocks."""
 
 
 class BlueprintArchitectAgent:
