@@ -1,0 +1,104 @@
+.container {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    height: 100%;
+    overflow-y: auto;
+}
+
+.section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.section h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 0;
+}
+
+.presetGrid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+}
+
+.presetBtn {
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    color: white;
+    font-weight: 500;
+    cursor: pointer;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    transition: transform 0.1s;
+}
+
+.presetBtn:hover {
+    transform: scale(1.02);
+}
+
+.presetBtn:focus {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
+}
+
+.presetBtn:focus:not(:focus-visible) {
+    outline: none;
+}
+.colorInput {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.colorInput label {
+    font-size: 14px;
+    color: #e2e8f0;
+}
+
+.colorPickerWrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #1e293b;
+    padding: 4px 8px 4px 4px;
+    border-radius: 6px;
+    border: 1px solid #334155;
+}
+
+.colorPickerWrapper input[type="color"] {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.colorPickerWrapper span {
+    font-size: 12px;
+    color: #94a3b8;
+    font-family: monospace;
+}
+
+.select {
+    width: 100%;
+    padding: 8px 12px;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    color: #e2e8f0;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.select:focus {
+    outline: none;
+    border-color: #3b82f6;
+}

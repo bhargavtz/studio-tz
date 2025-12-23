@@ -1,0 +1,16 @@
+/* Code Editor Wrapper */
+.codeEditorWrapper {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: #0d1117;
+}
+
+.divider {
+    width: 1px;
+    height: 20px;
+    background: var(--border-color);
+    margin: 0 0.5rem;
+    align-self: center;
+}
