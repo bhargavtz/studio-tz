@@ -62,10 +62,11 @@ class ErrorBoundary extends Component<Props, State> {
                                     overflow: 'auto',
                                     fontSize: '0.875rem'
                                 }}>
-                                    {this.state.error.toString()}
+                                    {process.env.NODE_ENV === 'development' 
+                                        ? `${this.state.error.message}\n\n${this.state.error.stack}` 
+                                        : this.state.error.message}
                                 </pre>
-                            </details>
-                        )}
+                            </details>                        )}
                         <button
                             onClick={() => window.location.href = '/'}
                             style={{

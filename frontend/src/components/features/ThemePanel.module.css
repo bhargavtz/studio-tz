@@ -43,6 +43,14 @@
     transform: scale(1.02);
 }
 
+.presetBtn:focus {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
+}
+
+.presetBtn:focus:not(:focus-visible) {
+    outline: none;
+}
 .colorInput {
     display: flex;
     justify-content: space-between;

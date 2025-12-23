@@ -6,6 +6,7 @@ from typing import List
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
+from bs4 import BeautifulSoup
 
 from app.services.session_manager import session_manager
 from app.services.file_manager import file_manager
@@ -52,7 +53,12 @@ async def generate_website(session_id: str):
         code.get("css", ""),
         code.get("js", "")
     )
-    
+
+    if not validation.get("valid", False):
+        raise HTTPException(
+            status_code=500,
+            detail=f"Generated code failed validation: {validation.get('errors', {})}"
+        )    
     # Safety: Enforce correct paths in HTML
     import re
     if "html" in code:
@@ -61,13 +67,20 @@ async def generate_website(session_id: str):
             '<link rel="stylesheet" href="styles/main.css">',
             code["html"]
         )
-        # Fix JS script
-        code["html"] = re.sub(
-            r'<script[^>]+src=["\'](?!scripts/main\.js)[^"\']+\.js["\'][^>]*>.*?</script>',
-            '<script src="scripts/main.js"></script>',
-            code["html"],
-            flags=re.DOTALL
-        )
+        # Fix JS script using BeautifulSoup
+        soup = BeautifulSoup(code["html"], 'html.parser')
+        scripts = soup.find_all('script')
+        for script in scripts:
+            if script.get('src') != 'scripts/main.js':
+                script.decompose()
+        # Ensure there's at least one main.js script
+        if not soup.find('script', src='scripts/main.js'):
+            new_script = soup.new_tag('script', src='scripts/main.js')
+            if soup.body:
+                soup.body.append(new_script)
+            else:
+                soup.append(new_script)
+        code["html"] = str(soup)
         # Fix asset paths (remove leading slash)
         code["html"] = re.sub(
             r'src=["\']/(assets/)',
@@ -100,7 +113,6 @@ async def generate_website(session_id: str):
     # Generate multi-page if needed
     from app.services.multi_page_generator import multi_page_generator
     from app.services.component_registry import ComponentRegistry
-    from bs4 import BeautifulSoup
     
     session_dir = file_manager.get_session_path(session_id)
     registry = ComponentRegistry(session_dir)

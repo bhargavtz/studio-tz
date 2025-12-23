@@ -9,7 +9,7 @@ interface ThemePanelProps {
 
 export default function ThemePanel({ sessionId, onThemeUpdate }: ThemePanelProps) {
     const [theme, setTheme] = useState<api.Theme | null>(null);
-    const [presets, setPresets] = useState<(api.Theme & { name: string })[]>([]);
+    const [presets, setPresets] = useState<api.ThemePreset[]>([]);
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
@@ -32,24 +32,47 @@ export default function ThemePanel({ sessionId, onThemeUpdate }: ThemePanelProps
     async function handleColorChange(key: keyof api.Theme, value: string) {
         if (!theme) return;
 
+        const previousTheme: api.Theme | null = theme ? { ...theme } : null;
         const newTheme = { ...theme, [key]: value };
         setTheme(newTheme);
 
         // Debounce update? For now direct update
         try {
-            const result = await api.updateTheme(sessionId, { colors: { [key]: value } });
+            let updatePayload: Partial<api.Theme> | { colors: Partial<Pick<api.Theme, keyof api.Theme>> };
+            if (key.endsWith('Color')) {
+                updatePayload = { colors: { [key]: value } };
+            } else {
+                updatePayload = { [key]: value };
+            }
+            const result = await api.updateTheme(sessionId, updatePayload);
             onThemeUpdate(result.preview_url);
         } catch (err) {
+            if (previousTheme) {
+                setTheme(previousTheme);
+            } else {
+                setTheme(null);
+            }
             console.error('Failed to update theme:', err);
         }
     }
 
-    async function handlePresetClick(preset: api.Theme) {
-        setTheme(preset);
+    async function handlePresetClick(preset: api.ThemePreset) {
+        const previousTheme = { ...theme };
+        const flatTheme: api.Theme = { ...preset.colors, fontFamily: preset.fontFamily, style: preset.style };
+        setTheme(flatTheme);
         try {
-            const result = await api.updateTheme(sessionId, preset);
+            const result = await api.updateTheme(sessionId, { colors: preset.colors, fontFamily: preset.fontFamily, style: preset.style });
             onThemeUpdate(result.preview_url);
         } catch (err) {
+            setTheme({
+                primaryColor: previousTheme.primaryColor ?? '',
+                secondaryColor: previousTheme.secondaryColor ?? '',
+                backgroundColor: previousTheme.backgroundColor ?? '',
+                textColor: previousTheme.textColor ?? '',
+                accentColor: previousTheme.accentColor ?? '',
+                fontFamily: previousTheme.fontFamily ?? '',
+                style: previousTheme.style ?? ''
+            });
             console.error('Failed to apply preset:', err);
         }
     }
@@ -67,7 +90,7 @@ export default function ThemePanel({ sessionId, onThemeUpdate }: ThemePanelProps
                             className={styles.presetBtn}
                             onClick={() => handlePresetClick(preset)}
                             style={{
-                                background: `linear-gradient(135deg, ${preset.primaryColor} 0%, ${preset.secondaryColor} 100%)`
+                                background: `linear-gradient(135deg, ${preset.colors.primaryColor} 0%, ${preset.colors.secondaryColor} 100%)`
                             }}
                         >
                             {preset.name}

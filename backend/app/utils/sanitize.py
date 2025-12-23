@@ -47,13 +47,8 @@ def sanitize_blueprint_data(data: Dict[str, Any]) -> Dict[str, Any]:
     elif isinstance(data, str):
         # Sanitize strings: escape HTML, limit length
         sanitized = html.escape(data[:5000])
-        # Remove potentially dangerous patterns
-        sanitized = re.sub(r'<script[^>]*>.*?</script>', '', sanitized, flags=re.IGNORECASE | re.DOTALL)
-        sanitized = re.sub(r'javascript:', '', sanitized, flags=re.IGNORECASE)
-        sanitized = re.sub(r'on\w+\s*=', '', sanitized, flags=re.IGNORECASE)
         return sanitized
-    else:
-        return data
+    else:        return data
 
 
 def validate_file_path(path: str) -> bool:

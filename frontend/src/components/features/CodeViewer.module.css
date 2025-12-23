@@ -143,9 +143,7 @@
 .codeBlock code {
     display: block;
     white-space: pre;
-    word-wrap: break-word;
 }
-
 .codeFooter {
     display: flex;
     justify-content: space-between;

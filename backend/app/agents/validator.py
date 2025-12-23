@@ -5,6 +5,7 @@ Validates generated and edited code.
 """
 
 from typing import Dict, Any, List, Tuple
+from html.parser import HTMLParser
 import re
 
 
@@ -20,39 +21,18 @@ class ValidatorAgent:
             errors.append("Missing DOCTYPE declaration")
         
         # Check for required tags
-        required_tags = ["<html", "<head", "<body", "</html>", "</head>", "</body>"]
+        required_tags = ["html", "head", "body"]
+        parser = TagChecker()
+        parser.feed(html_content)
         for tag in required_tags:
-            if tag.lower() not in html_content.lower():
-                errors.append(f"Missing required tag: {tag}")
+            if tag not in parser.start_tags:
+                errors.append(f"Missing required opening tag: <{tag}>")
+            if tag not in parser.end_tags:
+                errors.append(f"Missing required closing tag: </{tag}>")
         
         # Check for title
         if "<title>" not in html_content.lower():
             errors.append("Missing <title> tag")
-        
-        # Check for unclosed tags (basic check)
-        self_closing = ["img", "br", "hr", "input", "meta", "link"]
-        tag_pattern = r'<(\w+)[^>]*>'
-        close_pattern = r'</(\w+)>'
-        
-        open_tags = re.findall(tag_pattern, html_content.lower())
-        close_tags = re.findall(close_pattern, html_content.lower())
-        
-        # Filter out self-closing tags
-        open_tags = [t for t in open_tags if t not in self_closing]
-        
-        # Basic balance check
-        if len(open_tags) != len(close_tags):
-            errors.append("Warning: Tag count mismatch (may have unclosed tags)")
-        
-        return len(errors) == 0, errors
-    
-    def validate_css(self, css_content: str) -> Tuple[bool, List[str]]:
-        """Validate CSS content."""
-        errors = []
-        
-        # Check for balanced braces
-        open_braces = css_content.count('{')
-        close_braces = css_content.count('}')
         
         if open_braces != close_braces:
             errors.append(f"Unbalanced braces: {open_braces} open, {close_braces} close")
@@ -153,6 +133,19 @@ class ValidatorAgent:
             code = '\n'.join(fixed_lines)
         
         return code
+
+
+class TagChecker(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.start_tags = set()
+        self.end_tags = set()
+
+    def handle_starttag(self, tag, attrs):
+        self.start_tags.add(tag.lower())
+
+    def handle_endtag(self, tag):
+        self.end_tags.add(tag.lower())
 
 
 # Singleton instance

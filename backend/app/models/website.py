@@ -18,9 +18,8 @@ class WebsiteGenerationResult(BaseModel):
     session_id: str
     success: bool
     files: list[GeneratedFile] = Field(default_factory=list)
-    preview_url: str
+    preview_url: Optional[str] = None
     message: str
-
 
 class EditRequest(BaseModel):
     """Request to edit a website element."""

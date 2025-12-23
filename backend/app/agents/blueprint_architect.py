@@ -253,3 +253,4 @@ class BlueprintArchitectAgent:
 
 # Singleton instance
 blueprint_architect = BlueprintArchitectAgent()
+
