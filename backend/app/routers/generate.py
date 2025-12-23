@@ -59,56 +59,61 @@ async def generate_website(session_id: str):
             status_code=500,
             detail=f"Generated code failed validation: {validation.get('errors', {})}"
         )    
-    # Safety: Enforce correct paths in HTML
+    # Safety: Enforce correct paths and preserve CDNs
     import re
     if "html" in code:
-        code["html"] = re.sub(
-            r'<link[^>]+href=["\'](?!styles/main\.css)[^"\']+\.css["\'][^>]*>',
-            '<link rel="stylesheet" href="styles/main.css">',
-            code["html"]
-        )
-        # Fix JS script using BeautifulSoup
         soup = BeautifulSoup(code["html"], 'html.parser')
-        scripts = soup.find_all('script')
+        
+        # 1. Process CSS links
+        links = soup.find_all('link', rel='stylesheet')
+        has_main_css = False
+        for link in links:
+            href = link.get('href', '')
+            if href == 'styles/main.css':
+                has_main_css = True
+            elif href and not (href.startswith('http') or href.startswith('https')):
+                link['href'] = 'styles/main.css'
+                has_main_css = True
+        
+        if not has_main_css and soup.head:
+            new_link = soup.new_tag('link', rel='stylesheet', href='styles/main.css')
+            soup.head.append(new_link)
+            
+        # 2. Process JS scripts
+        scripts = soup.find_all('script', src=True)
+        has_main_js = False
         for script in scripts:
-            if script.get('src') != 'scripts/main.js':
-                script.decompose()
-        # Ensure there's at least one main.js script
-        if not soup.find('script', src='scripts/main.js'):
+            src = script.get('src', '')
+            if src == 'scripts/main.js':
+                has_main_js = True
+            elif src and not (src.startswith('http') or src.startswith('https')):
+                script.decompose() # Remove other local scripts to avoid conflicts
+        
+        if not has_main_js:
             new_script = soup.new_tag('script', src='scripts/main.js')
             if soup.body:
                 soup.body.append(new_script)
             else:
                 soup.append(new_script)
-        code["html"] = str(soup)
+        
+        # 3. Fix asset paths and nav links in the string representation
+        processed_html = str(soup)
+        
         # Fix asset paths (remove leading slash)
-        code["html"] = re.sub(
-            r'src=["\']/(assets/)',
-            r'src="\1',
-            code["html"]
-        )
+        processed_html = re.sub(r'src=["\']/(assets/)', r'src="\1', processed_html)
         
         # Fix navigation links (convert /page to page.html)
-        # Match href="/something" but not href="/" or href="#" or external URLs
         def fix_nav_link(match):
             path = match.group(1)
-            # Skip if it's root, anchor, external URL, or already has an extension
-            if (path == "/" or 
-                path.startswith("#") or 
-                path.startswith("http") or
+            if (path == "/" or path.startswith("#") or path.startswith("http") or
                 path.endswith((".css", ".js", ".jpg", ".png", ".gif", ".svg", ".webp", ".ico", ".pdf"))):
                 return match.group(0)
-            # Remove leading slash and add .html if not present
             clean_path = path.lstrip("/")
             if not clean_path.endswith(".html"):
                 clean_path += ".html"
             return f'href="{clean_path}"'
         
-        code["html"] = re.sub(
-            r'href=["\']([^"\']+)["\']',
-            fix_nav_link,
-            code["html"]
-        )
+        code["html"] = re.sub(r'href=["\']([^"\']+)["\']', fix_nav_link, processed_html)
     
     # Generate multi-page if needed
     from app.services.multi_page_generator import multi_page_generator
@@ -117,7 +122,7 @@ async def generate_website(session_id: str):
     session_dir = file_manager.get_session_path(session_id)
     registry = ComponentRegistry(session_dir)
     
-    pages = multi_page_generator.generate_pages(
+    pages = await multi_page_generator.generate_pages(
         blueprint=session.blueprint,
         base_html=code.get("html", ""),
         base_css=code.get("css", ""),

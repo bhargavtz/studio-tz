@@ -33,11 +33,12 @@ async def get_blueprint(session_id: str):
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     
-    if not session.answers:
-        raise HTTPException(
-            status_code=400,
-            detail="Answers not collected yet. Submit answers first."
-        )
+    # Relaxed check: Allow empty answers if user skipped everything
+    # if not session.answers:
+    #     raise HTTPException(
+    #         status_code=400,
+    #         detail="Answers not collected yet. Submit answers first."
+    #     )
     
     # Check if blueprint already exists
     if session.blueprint:

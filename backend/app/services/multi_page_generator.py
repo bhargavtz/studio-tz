@@ -10,165 +10,96 @@ from bs4 import BeautifulSoup
 
 
 class MultiPageGenerator:
-    """Handles generation of multi-page websites."""
+    """Handles generation of multi-page websites using AI."""
     
-    def generate_pages(
+    async def generate_pages(
         self,
         blueprint: Dict[str, Any],
         base_html: str,
         base_css: str,
         base_js: str
     ) -> Dict[str, str]:
-        """Generate multiple HTML pages from blueprint."""
+        """Generate multiple HTML pages from blueprint using AI."""
         pages = blueprint.get("pages", [])
         
         if len(pages) <= 1:
             # Single page site
             return {"index.html": base_html}
         
+        from app.agents.code_generator import code_generator
         generated_pages = {}
         
         for page in pages:
             page_slug = page.get("slug", "/")
-            page_title = page.get("title", "Page")
+            page_id = page.get("id", "home")
             
             # Determine filename
             if page_slug == "/" or page_slug == "index":
                 filename = "index.html"
+                # Use base_html for index, but update navigation
+                page_html = await self._post_process_navigation(base_html, pages, page_slug)
             else:
                 filename = f"{page_slug.strip('/').replace('/', '-')}.html"
-            
-            # Generate page HTML
-            page_html = self._generate_page_html(
-                page=page,
-                base_html=base_html,
-                all_pages=pages,
-                blueprint=blueprint
-            )
+                # Generate new page content using AI
+                print(f"✨ Generating high-quality page: {filename}")
+                page_html = await code_generator.generate_page(
+                    blueprint=blueprint,
+                    page_id=page_id,
+                    base_css=base_css,
+                    base_js=base_js
+                )
+                
+                # If generation failed, fallback to a basic update
+                if not page_html:
+                    page_html = self._generate_fallback_page(page, base_html, pages, blueprint)
+                else:
+                    # Update navigation in the AI-generated HTML
+                    page_html = await self._post_process_navigation(page_html, pages, page_slug)
             
             generated_pages[filename] = page_html
         
         return generated_pages
-    
-    def _generate_page_html(
-        self,
-        page: Dict[str, Any],
-        base_html: str,
-        all_pages: List[Dict[str, Any]],
-        blueprint: Dict[str, Any]
-    ) -> str:
-        """Generate HTML for a specific page."""
+
+    async def _post_process_navigation(self, html: str, all_pages: List[Dict[str, Any]], current_slug: str) -> str:
+        """Ensure navigation links are correct in AI-generated HTML."""
+        soup = BeautifulSoup(html, 'html.parser')
+        
+        # Match all internal links
+        for a in soup.find_all('a', href=True):
+            href = a['href']
+            # Skip external, anchor, or root
+            if href.startswith('http') or href.startswith('#'):
+                continue
+            
+            # Find the corresponding page in blueprint
+            target_slug = href.strip('/')
+            if not target_slug or target_slug == "index":
+                a['href'] = "index.html"
+            else:
+                # Add .html if missing
+                if not target_slug.endswith('.html'):
+                    a['href'] = f"{target_slug.replace('/', '-')}.html"
+            
+            # Mark active link
+            if href == current_slug or (href == "/" and current_slug == "/"):
+                classes = a.get('class', [])
+                if isinstance(classes, str):
+                    classes = [classes]
+                if 'active' not in classes:
+                    classes.append('active')
+                a['class'] = classes
+        
+        return str(soup.prettify())
+
+    def _generate_fallback_page(self, page, base_html, all_pages, blueprint):
+        """Fallback to basic page generation if AI fails."""
         soup = BeautifulSoup(base_html, 'html.parser')
-        
-        # Update title
-        title_tag = soup.find('title')
-        if title_tag:
-            title_tag.string = page.get("meta", {}).get("title", page.get("title", "Page"))
-        
-        # Update meta description
-        meta_desc = soup.find('meta', attrs={'name': 'description'})
-        if meta_desc:
-            meta_desc['content'] = page.get("meta", {}).get("description", "")
-        
-        # Update navigation links
-        self._update_navigation(soup, all_pages, page.get("slug", "/"))
-        
-        # Generate page content
         main_tag = soup.find('main')
         if main_tag:
             main_tag.clear()
-            
-            # Add sections for this page
-            for section in page.get("sections", []):
-                section_html = self._generate_section(section)
-                main_tag.append(BeautifulSoup(section_html, 'html.parser'))
-        
+            # Simple content for fallback
+            main_tag.append(BeautifulSoup(f"<section class='py-20'><div class='container mx-auto px-6'><h1>{page.get('title')}</h1><p>Content for {page.get('title')} coming soon.</p></div></section>", 'html.parser'))
         return str(soup.prettify())
-    
-    def _update_navigation(
-        self,
-        soup: BeautifulSoup,
-        all_pages: List[Dict[str, Any]],
-        current_slug: str
-    ):
-        """Update navigation links."""
-        nav = soup.find('nav')
-        if not nav:
-            return
-        
-        # Find nav links container
-        nav_links = nav.find('ul', class_='nav-links')
-        if nav_links:
-            nav_links.clear()
-            
-            for page in all_pages:
-                slug = page.get("slug", "/")
-                title = page.get("title", "Page")
-                
-                # Determine href
-                if slug == "/":
-                    href = "index.html"
-                else:
-                    href = f"{slug.strip('/').replace('/', '-')}.html"
-                
-                # Create link
-                li = soup.new_tag('li')
-                a = soup.new_tag('a', href=href)
-                a.string = title
-                
-                # Mark active
-                if slug == current_slug:
-                    a['class'] = a.get('class', []) + ['active']
-                
-                li.append(a)
-                nav_links.append(li)
-    
-    def _generate_section(self, section: Dict[str, Any]) -> str:
-        """Generate HTML for a section."""
-        section_type = section.get("type", "content")
-        section_id = section.get("id", "")
-        section_title = section.get("title", "")
-        
-        html = f'<section id="{section_id}" class="{section_type}">\n'
-        html += '  <div class="container">\n'
-        
-        if section_title:
-            html += f'    <h2>{section_title}</h2>\n'
-        
-        # Add components
-        for component in section.get("components", []):
-            html += self._generate_component(component)
-        
-        html += '  </div>\n'
-        html += '</section>\n'
-        
-        return html
-    
-    def _generate_component(self, component: Dict[str, Any]) -> str:
-        """Generate HTML for a component."""
-        comp_type = component.get("type", "paragraph")
-        comp_id = component.get("id", "")
-        content = component.get("content", "")
-        properties = component.get("properties", {})
-        
-        if comp_type == "heading":
-            level = properties.get("level", "h2")
-            return f'    <{level} data-ncd-id="{comp_id}" data-ncd-type="text">{content}</{level}>\n'
-        
-        elif comp_type == "paragraph":
-            return f'    <p data-ncd-id="{comp_id}" data-ncd-type="text">{content}</p>\n'
-        
-        elif comp_type == "button":
-            variant = properties.get("variant", "primary")
-            return f'    <a href="#" class="btn btn-{variant}" data-ncd-id="{comp_id}" data-ncd-type="button">{content}</a>\n'
-        
-        elif comp_type == "image":
-            src = properties.get("src", "/assets/placeholder.jpg")
-            alt = properties.get("alt", content)
-            return f'    <img src="{src}" alt="{alt}" data-ncd-id="{comp_id}" data-ncd-type="image">\n'
-        
-        else:
-            return f'    <div data-ncd-id="{comp_id}" data-ncd-type="element">{content}</div>\n'
 
 
 # Singleton

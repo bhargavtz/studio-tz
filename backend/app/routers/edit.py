@@ -22,7 +22,18 @@ class StructuredEditRequest(BaseModel):
     """Structured edit request with NCD ID."""
     ncd_id: str
     instruction: str
+    instruction: str
     current_value: Optional[str] = None
+
+
+class ManualEditRequest(BaseModel):
+    """Manual file edit request."""
+    edit_type: str
+    file_path: str
+    selector: Optional[str] = None
+    instruction: str
+    value: Optional[Any] = None
+
 
 
 class EditResponse(BaseModel):
@@ -32,6 +43,64 @@ class EditResponse(BaseModel):
     changes_description: str
     preview_url: str
     version: int
+
+
+    version: int
+
+
+@router.post("/edit/{session_id}", response_model=EditResponse)
+async def apply_manual_edit(session_id: str, request: ManualEditRequest):
+    """Apply a manual direct edit to a file."""
+    session = session_manager.get_session(session_id)
+
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if not session.files_generated:
+        raise HTTPException(
+            status_code=400,
+            detail="Website not generated yet."
+        )
+
+    # For manual edits, the value should contain the new content
+    if request.edit_type != "manual":
+        raise HTTPException(
+            status_code=400,
+            detail="This endpoint only supports manual edits. Use /structured for AI-assisted edits."
+        )
+
+    if not request.value or not isinstance(request.value, str):
+        raise HTTPException(
+            status_code=400,
+            detail="Manual edits require a 'value' containing the new file content as a string."
+        )
+
+    # Write the new content directly
+    file_manager.write_file(session_id, request.file_path, request.value)
+
+    # Save to history
+    session_dir = file_manager.get_session_path(session_id)
+    history = EditHistory(session_dir)
+
+    # Read old content for history
+    old_content = file_manager.read_file(session_id, request.file_path) or ""
+
+    version = history.save_diff(
+        file_path=request.file_path,
+        ncd_id="manual-edit",
+        before=old_content,
+        after=request.value,
+        edit_type="manual"
+    )
+
+    return EditResponse(
+        success=True,
+        ncd_id="manual",
+        action="OVERWRITE",
+        changes_description=f"Manual edit to {request.file_path}",
+        preview_url=file_manager.get_preview_url(session_id),
+        version=version
+    )
 
 
 @router.post("/edit/{session_id}/structured", response_model=EditResponse)
@@ -305,7 +374,7 @@ async def chat_edit(session_id: str, request: ChatEditRequest):
         )
     
     try:
-        from app.services.advanced_groq_editor import advanced_editor
+        from app.services.surgical_groq_editor import surgical_editor
         
         # Get current files
         html_content = file_manager.read_file(session_id, "index.html") or ""
@@ -313,8 +382,8 @@ async def chat_edit(session_id: str, request: ChatEditRequest):
         
         print(f"User request: {request.message}")
         
-        # Use Advanced AI to modify entire website
-        result = await advanced_editor.modify_website(
+        # Use Surgical AI to modify ONLY what user requests
+        result = await surgical_editor.modify_website(
             user_request=request.message,
             current_html=html_content,
             current_css=css_content

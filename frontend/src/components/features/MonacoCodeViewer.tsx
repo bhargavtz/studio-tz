@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import Editor from '@monaco-editor/react';
 import styles from './MonacoCodeViewer.module.css';
 import * as api from '@/lib/api';
@@ -28,7 +28,8 @@ export default function MonacoCodeViewer({ sessionId }: MonacoCodeViewerProps) {
     const [selectedFile, setSelectedFile] = useState<CodeFile | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const [fileTree, setFileTree] = useState<FileNode[]>([]);
+    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+    const [saving, setSaving] = useState(false);
 
     useEffect(() => {
         loadFiles();
@@ -74,14 +75,35 @@ export default function MonacoCodeViewer({ sessionId }: MonacoCodeViewerProps) {
         return root;
     };
 
+    // Memoize file tree to prevent expensive recalculation on every render
+    const fileTree = useMemo(() => buildFileTree(files), [files]);
+
     const loadFiles = async () => {
         try {
             setLoading(true);
+            setError('');
             console.log('Loading files for session:', sessionId);
-            const preview = await api.getPreviewUrl(sessionId);
+
+            let preview;
+            try {
+                preview = await api.getPreviewUrl(sessionId);
+            } catch (previewErr) {
+                // Website not generated yet
+                console.log('Preview not ready:', previewErr);
+                setError('Website not generated yet. Generate a website first.');
+                setLoading(false);
+                return;
+            }
+
             console.log('Preview data:', preview);
             const fileList = preview.files || [];
             console.log('File list:', fileList);
+
+            if (fileList.length === 0) {
+                setError('No files generated yet.');
+                setLoading(false);
+                return;
+            }
 
             // Load content for each file
             const loadedFiles: CodeFile[] = [];
@@ -102,10 +124,6 @@ export default function MonacoCodeViewer({ sessionId }: MonacoCodeViewerProps) {
 
             console.log('Loaded files:', loadedFiles);
             setFiles(loadedFiles);
-
-            // Build file tree
-            const tree = buildFileTree(loadedFiles);
-            setFileTree(tree);
 
             if (loadedFiles.length > 0) {
                 // Select index.html by default
@@ -161,6 +179,50 @@ export default function MonacoCodeViewer({ sessionId }: MonacoCodeViewerProps) {
         const file = files.find(f => f.path === path);
         if (file) {
             setSelectedFile(file);
+            setHasUnsavedChanges(false); // Reset unsaved changes when switching files
+        }
+    };
+
+    const handleEditorChange = (value: string | undefined) => {
+        if (!selectedFile) return;
+
+        // Update the file content in state
+        const updatedFile = { ...selectedFile, content: value || '' };
+        setSelectedFile(updatedFile);
+
+        // Update in files array
+        setFiles(prevFiles =>
+            prevFiles.map(f => f.path === selectedFile.path ? updatedFile : f)
+        );
+
+        setHasUnsavedChanges(true);
+    };
+
+    const handleSave = async () => {
+        if (!selectedFile || !hasUnsavedChanges) return;
+
+        try {
+            setSaving(true);
+
+            // Call the edit API
+            const result = await api.editWebsite(sessionId, {
+                edit_type: 'manual',
+                file_path: selectedFile.path,
+                instruction: `Manual edit to ${selectedFile.path}`,
+                value: selectedFile.content
+            });
+
+            if (result.success) {
+                setHasUnsavedChanges(false);
+                console.log('File saved successfully:', result);
+            } else {
+                throw new Error('Save failed');
+            }
+        } catch (error) {
+            console.error('Failed to save file:', error);
+            alert('Failed to save changes. Please try again.');
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -176,7 +238,7 @@ export default function MonacoCodeViewer({ sessionId }: MonacoCodeViewerProps) {
     if (error || files.length === 0) {
         return (
             <div className={styles.empty}>
-                <p>No code files available</p>
+                <p>{error || 'No code files available'}</p>
             </div>
         );
     }
@@ -205,6 +267,14 @@ export default function MonacoCodeViewer({ sessionId }: MonacoCodeViewerProps) {
                             </div>
                         </div>
                         <div className={styles.actions}>
+                            <button
+                                onClick={handleSave}
+                                className={`${styles.actionBtn} ${hasUnsavedChanges ? styles.saveBtn : ''}`}
+                                title="Save Changes"
+                                disabled={saving || !hasUnsavedChanges}
+                            >
+                                {saving ? '💾' : '💾'}
+                            </button>
                             <button onClick={handleCopy} className={styles.actionBtn} title="Copy to Clipboard">
                                 📋
                             </button>
@@ -223,6 +293,7 @@ export default function MonacoCodeViewer({ sessionId }: MonacoCodeViewerProps) {
                             language={getLanguage(selectedFile.type)}
                             value={selectedFile.content || '// No content'}
                             theme="vs-dark"
+                            onChange={handleEditorChange}
                             loading={
                                 <div className={styles.loading}>
                                     <div className={styles.spinner}></div>
@@ -230,7 +301,7 @@ export default function MonacoCodeViewer({ sessionId }: MonacoCodeViewerProps) {
                                 </div>
                             }
                             options={{
-                                readOnly: true,
+                                readOnly: false,
                                 minimap: { enabled: true },
                                 fontSize: 14,
                                 lineNumbers: 'on',

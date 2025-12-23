@@ -2,13 +2,31 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
+import dynamicImport from 'next/dynamic';
 import styles from './page.module.css';
 import * as api from '@/lib/api';
 import { config } from '@/lib/config';
-import ThemePanel from '@/components/features/ThemePanel';
-import AssetManager from '@/components/features/AssetManager';
-import PageManager from '@/components/features/PageManager';
-import MonacoCodeViewer from '@/components/features/MonacoCodeViewer';
+
+// Lazy load heavy components for better initial load performance
+const ThemePanel = dynamicImport(() => import('@/components/features/ThemePanel'), {
+    loading: () => <div className={styles.lazyLoading}>Loading themes...</div>,
+    ssr: false
+});
+
+const AssetManager = dynamicImport(() => import('@/components/features/AssetManager'), {
+    loading: () => <div className={styles.lazyLoading}>Loading assets...</div>,
+    ssr: false
+});
+
+const PageManager = dynamicImport(() => import('@/components/features/PageManager'), {
+    loading: () => <div className={styles.lazyLoading}>Loading pages...</div>,
+    ssr: false
+});
+
+const MonacoCodeViewer = dynamicImport(() => import('@/components/features/MonacoCodeViewer'), {
+    loading: () => <div className={styles.lazyLoading}>Loading code editor...</div>,
+    ssr: false
+});
 
 // Force dynamic rendering (no static generation during build)
 export const dynamic = 'force-dynamic';
@@ -132,8 +150,7 @@ export default function BuilderPage() {
 
     const handleDownload = async () => {
         try {
-            const response = await fetch(`${config.apiUrl}/deploy/${sessionId}/download`);
-            const blob = await response.blob();
+            const blob = await api.downloadProject(sessionId);
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -469,11 +486,18 @@ export default function BuilderPage() {
 
                             {viewMode === 'preview' ? (
                                 <div className={`${styles.previewWrapper} ${deviceMode === 'mobile' ? styles.mobileMode : ''}`}>
-                                    <iframe
-                                        src={previewUrl}
-                                        className={styles.previewFrame}
-                                        title="Website Preview"
-                                    />
+                                    {previewUrl ? (
+                                        <iframe
+                                            src={previewUrl}
+                                            className={styles.previewFrame}
+                                            title="Website Preview"
+                                        />
+                                    ) : (
+                                        <div className={styles.previewPlaceholder}>
+                                            <div className={styles.spinner}></div>
+                                            <p>Generating your website preview...</p>
+                                        </div>
+                                    )}
                                 </div>
                             ) : (
                                 <div className={styles.codeEditorWrapper}>
@@ -522,22 +546,30 @@ export default function BuilderPage() {
                                         <div className={styles.chatMessages}>
                                             {chatHistory.length === 0 ? (
                                                 <div className={styles.chatWelcome}>
-                                                    <p>✨ AI Website Editor</p>
-                                                    <p>बोलो क्या बदलना है - कुछ भी!</p>
-                                                    <button onClick={() => setChatMessage("Add a hero section with a big heading and button")}>
-                                                        "Add hero section"
+                                                    <div className={styles.chatWelcomeIcon}>💬✨</div>
+                                                    <h3>AI Website Editor</h3>
+                                                    <p className={styles.chatWelcomeDesc}>Chat naturally to make changes to your website. Only what you request will be modified - your entire site won't regenerate!</p>
+
+                                                    <div className={styles.chatExamplesLabel}>Try these examples:</div>
+                                                    <button onClick={() => setChatMessage("Change the heading to Welcome to My Business")} className={styles.exampleBtn}>
+                                                        <span className={styles.exampleIcon}>✏️</span>
+                                                        <span>Change main heading text</span>
                                                     </button>
-                                                    <button onClick={() => setChatMessage("Add 3 images in a gallery")}>
-                                                        "Add image gallery"
+                                                    <button onClick={() => setChatMessage("Add a contact form with email and message fields")} className={styles.exampleBtn}>
+                                                        <span className={styles.exampleIcon}>➕</span>
+                                                        <span>Add contact form section</span>
                                                     </button>
-                                                    <button onClick={() => setChatMessage("Add a contact form with name, email and message fields")}>
-                                                        "Add contact form"
+                                                    <button onClick={() => setChatMessage("Make the primary color blue")} className={styles.exampleBtn}>
+                                                        <span className={styles.exampleIcon}>🎨</span>
+                                                        <span>Change colors</span>
                                                     </button>
-                                                    <button onClick={() => setChatMessage("Make it look more modern with gradients")}>
-                                                        "Make it modern"
+                                                    <button onClick={() => setChatMessage("Add a 3-column feature section")} className={styles.exampleBtn}>
+                                                        <span className={styles.exampleIcon}>📦</span>
+                                                        <span>Add features section</span>
                                                     </button>
-                                                    <button onClick={() => setChatMessage("Add a features section with 3 cards")}>
-                                                        "Add features section"
+                                                    <button onClick={() => setChatMessage("Make the font size bigger")} className={styles.exampleBtn}>
+                                                        <span className={styles.exampleIcon}>🔤</span>
+                                                        <span>Adjust typography</span>
                                                     </button>
                                                 </div>
                                             ) : (
@@ -591,7 +623,7 @@ export default function BuilderPage() {
                                     <div className={styles.chatInput}>
                                         <input
                                             type="text"
-                                            placeholder="कुछ भी बोलो - section add करो, image डालो, layout बदलो..."
+                                            placeholder="Say what to change... add section, change color, edit text, anything!"
                                             value={chatMessage}
                                             onChange={(e) => setChatMessage(e.target.value)}
                                             onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
