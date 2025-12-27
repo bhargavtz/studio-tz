@@ -1,22 +1,35 @@
 """
-NCD INAI - Blueprint Router
+NCD INAI - Blueprint Router (Refactored with New Architecture)
+Uses SessionService and proper exception handling
 """
 
 from typing import Dict, Any
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+from uuid import UUID
+import logging
 
-from app.services.session_manager import session_manager
-from app.models.session import SessionStatus
+from app.services.new_session_service import SessionService
+from app.api.dependencies import get_session_service
 from app.agents.blueprint_architect import blueprint_architect
+from app.core.exceptions import ValidationError, BlueprintAlreadyConfirmedError
+from app.database.models import SessionStatus
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+
+# ==================== Request/Response Models ====================
 
 class BlueprintResponse(BaseModel):
     session_id: str
     blueprint: Dict[str, Any]
     editable: bool = True
+
+
+class BlueprintUpdateRequest(BaseModel):
+    blueprint: Dict[str, Any]
 
 
 class BlueprintConfirmResponse(BaseModel):
@@ -25,111 +38,147 @@ class BlueprintConfirmResponse(BaseModel):
     message: str
 
 
+# ==================== Endpoints ====================
+
 @router.get("/blueprint/{session_id}", response_model=BlueprintResponse)
-async def get_blueprint(session_id: str):
-    """Get or generate the website blueprint."""
-    session = session_manager.get_session(session_id)
+async def get_blueprint(
+    session_id: str,
+    session_service: SessionService = Depends(get_session_service)
+):
+    """
+    Get or generate the website blueprint.
     
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+    If blueprint exists, return it. Otherwise, generate new blueprint
+    using AI based on user's intent and answers.
+    """
+    # Parse UUID
+    try:
+        session_uuid = UUID(session_id)
+    except ValueError:
+        raise ValidationError("session_id", "Invalid UUID format")
     
+    # Get session (raises SessionNotFoundError if not found)
+    session = await session_service.get_session(session_uuid)
+    
+    # Validate that answers exist
     if not session.answers:
-        raise HTTPException(
-            status_code=400,
-            detail="Answers not collected yet. Submit answers first."
+        raise ValidationError(
+            "answers",
+            "Answers not collected yet. Submit answers first."
         )
     
     # Check if blueprint already exists
     if session.blueprint:
+        logger.info(f"Returning existing blueprint for session {session_id}")
         return BlueprintResponse(
-            session_id=session.id,
+            session_id=str(session.id),
             blueprint=session.blueprint,
             editable=not session.blueprint_confirmed
         )
     
-    # Generate blueprint
+    # Generate new blueprint
+    logger.info(f"Generating blueprint for session {session_id}")
+    
+    from app.models.session import DomainClassification
+    domain_obj = DomainClassification(**session.domain)
+    
     blueprint = await blueprint_architect.create_blueprint(
-        domain=session.domain,
+        domain=domain_obj,
         intent=session.intent,
         answers=session.answers
     )
     
-    session.blueprint = blueprint
-    session.status = SessionStatus.BLUEPRINT_GENERATED
+    # Save blueprint to session
+    await session_service.update_session(
+        session_uuid,
+        blueprint=blueprint,
+        status=SessionStatus.BLUEPRINT_GENERATED.value
+    )
     
-    # Stop saving separate blueprint.json as per user request
-    # session_manager.save_json_file(
-    #     session_id,
-    #     "blueprint.json",
-    #     blueprint
-    # )
-    
-    session_manager.update_session(session)
+    logger.info(f"✅ Blueprint generated for session {session_id}")
     
     return BlueprintResponse(
-        session_id=session.id,
+        session_id=str(session.id),
         blueprint=blueprint,
         editable=True
     )
 
 
-class BlueprintUpdateRequest(BaseModel):
-    blueprint: Dict[str, Any]
-
-
 @router.put("/blueprint/{session_id}", response_model=BlueprintResponse)
-async def update_blueprint(session_id: str, request: BlueprintUpdateRequest):
-    """Update the blueprint before confirmation."""
-    session = session_manager.get_session(session_id)
+async def update_blueprint(
+    session_id: str,
+    request: BlueprintUpdateRequest,
+    session_service: SessionService = Depends(get_session_service)
+):
+    """
+    Update the blueprint before confirmation.
     
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+    Allows users to modify the AI-generated blueprint before
+    confirming and proceeding to code generation.
+    """
+    # Parse UUID
+    try:
+        session_uuid = UUID(session_id)
+    except ValueError:
+        raise ValidationError("session_id", "Invalid UUID format")
     
+    # Get session
+    session = await session_service.get_session(session_uuid)
+    
+    # Check if blueprint is already confirmed
     if session.blueprint_confirmed:
-        raise HTTPException(
-            status_code=400,
-            detail="Blueprint already confirmed. Cannot modify."
-        )
+        raise BlueprintAlreadyConfirmedError(str(session_uuid))
     
     # Update blueprint
-    session.blueprint = request.blueprint
-    
-    # Save updated blueprint
-    session_manager.save_json_file(
-        session_id,
-        "blueprint.json",
-        request.blueprint
+    updated_session = await session_service.update_session(
+        session_uuid,
+        blueprint=request.blueprint
     )
     
-    session_manager.update_session(session)
+    logger.info(f"✅ Blueprint updated for session {session_id}")
     
     return BlueprintResponse(
-        session_id=session.id,
-        blueprint=session.blueprint,
+        session_id=str(updated_session.id),
+        blueprint=updated_session.blueprint,
         editable=True
     )
 
 
 @router.post("/blueprint/{session_id}/confirm", response_model=BlueprintConfirmResponse)
-async def confirm_blueprint(session_id: str):
-    """Confirm the blueprint to proceed with code generation."""
-    session = session_manager.get_session(session_id)
+async def confirm_blueprint(
+    session_id: str,
+    session_service: SessionService = Depends(get_session_service)
+):
+    """
+    Confirm the blueprint to proceed with code generation.
     
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+    Once confirmed, the blueprint cannot be modified and
+    the system will proceed to generate website code.
+    """
+    # Parse UUID
+    try:
+        session_uuid = UUID(session_id)
+    except ValueError:
+        raise ValidationError("session_id", "Invalid UUID format")
     
+    # Get session
+    session = await session_service.get_session(session_uuid)
+    
+    # Validate blueprint exists
     if not session.blueprint:
-        raise HTTPException(
-            status_code=400,
-            detail="Blueprint not generated yet."
+        raise ValidationError(
+            "blueprint",
+            "Blueprint not generated yet."
         )
     
-    session.blueprint_confirmed = True
-    session.status = SessionStatus.BLUEPRINT_CONFIRMED
-    session_manager.update_session(session)
+    # Confirm blueprint
+    updated_session = await session_service.confirm_blueprint(session_uuid)
+    
+    logger.info(f"✅ Blueprint confirmed for session {session_id}")
     
     return BlueprintConfirmResponse(
-        session_id=session.id,
-        status=session.status.value,
+        session_id=str(updated_session.id),
+        status=updated_session.status,
         message="Blueprint confirmed. Ready to generate website."
     )
+

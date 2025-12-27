@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './page.module.css';
 import * as api from '@/lib/api';
+import { SignInButton, SignUpButton, SignedIn, SignedOut, UserButton, useUser } from '@clerk/nextjs';
 
 export default function Home() {
   const [intent, setIntent] = useState('');
@@ -11,6 +12,14 @@ export default function Home() {
   const [error, setError] = useState('');
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const router = useRouter();
+  const { isSignedIn, isLoaded } = useUser();
+
+  // Redirect authenticated users to dashboard
+  useEffect(() => {
+    if (isLoaded && isSignedIn) {
+      router.push('/dashboard');
+    }
+  }, [isLoaded, isSignedIn, router]);
 
   // Mouse parallax effect
   useEffect(() => {
@@ -78,11 +87,32 @@ export default function Home() {
             <span className={styles.logoIcon}>✦</span>
             <span className={styles.logoText}>NCD INAI</span>
           </div>
-          <nav className={styles.nav}>
-            <a href="#features" className={styles.navLink}>Features</a>
-            <a href="#showcase" className={styles.navLink}>Showcase</a>
-            <a href="#pricing" className={styles.navLink}>Pricing</a>
-          </nav>
+          <div className={styles.authSection}>
+            <nav className={styles.nav}>
+              <a href="#features" className={styles.navLink}>Features</a>
+              <a href="#showcase" className={styles.navLink}>Showcase</a>
+              <a href="#pricing" className={styles.navLink}>Pricing</a>
+            </nav>
+            <div className={styles.authButtons}>
+              <SignedOut>
+                <SignInButton mode="modal">
+                  <button className={styles.signInButton}>
+                    <span className={styles.userIcon}>👤</span>
+                    <span>Sign In</span>
+                  </button>
+                </SignInButton>
+                <SignUpButton mode="modal">
+                  <button className={styles.signUpButton}>
+                    <span>Sign Up</span>
+                    <span className={styles.buttonArrow}>→</span>
+                  </button>
+                </SignUpButton>
+              </SignedOut>
+              <SignedIn>
+                <UserButton afterSignOutUrl="/" />
+              </SignedIn>
+            </div>
+          </div>
         </div>
       </header>
 
@@ -110,7 +140,7 @@ export default function Home() {
           </p>
 
           {/* CTA Input */}
-          <form className={styles.ctaForm} onSubmit={handleSubmit}>
+          <form className={styles.ctaForm} onSubmit={handleSubmit} suppressHydrationWarning>
             <div className={styles.inputGroup}>
               <div className={styles.inputIcon}>✨</div>
               <input

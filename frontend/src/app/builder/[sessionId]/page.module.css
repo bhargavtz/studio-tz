@@ -89,6 +89,54 @@
 .headerActions {
     display: flex;
     gap: 0.75rem;
+    align-items: center;
+}
+
+.authButtons {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.signInBtn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.signInBtn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--primary);
+    transform: translateY(-1px);
+}
+
+.signUpBtn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: var(--gradient-primary);
+    border: none;
+    border-radius: var(--radius-md);
+    color: white;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.signUpBtn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
 }
 
 .downloadBtn {
@@ -471,21 +519,54 @@
 /* Preview Section */
 .previewContainer {
     flex: 1;
-    display: grid;
-    grid-template-columns: 1fr 350px;
+    display: flex;
     height: 100%;
     overflow: hidden;
 }
 
 .previewContainer.codeMode {
-    grid-template-columns: 1fr;
+    display: flex;
 }
 
 .previewPanel {
     display: flex;
     flex-direction: column;
     background: var(--bg-secondary);
-    border-right: 1px solid var(--border-color);
+    overflow: hidden;
+    transition: width 0.05s linear;
+}
+
+/* Resize Divider */
+.resizeDivider {
+    width: 6px;
+    background: var(--border-color);
+    cursor: col-resize;
+    position: relative;
+    flex-shrink: 0;
+    transition: background 0.2s;
+    z-index: 10;
+}
+
+.resizeDivider:hover {
+    background: var(--primary-color);
+}
+
+.resizeDivider:hover .resizeHandle {
+    opacity: 1;
+}
+
+.resizeHandle {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 3px;
+    height: 40px;
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 2px;
+    opacity: 0.5;
+    transition: opacity 0.2s;
+    pointer-events: none;
 }
 
 .previewHeader {
@@ -852,4 +933,26 @@
     .questionsContainer {
         padding: 2rem 1rem;
     }
+}
+
+/* Dashboard Link */
+.dashboardLink {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.5rem 0.75rem;
+    background: rgba(99, 102, 241, 0.1);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    border-radius: var(--radius-md);
+    color: var(--primary-light);
+    font-size: 0.8rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all var(--transition-fast);
+}
+
+.dashboardLink:hover {
+    background: rgba(99, 102, 241, 0.2);
+    border-color: rgba(99, 102, 241, 0.4);
+    transform: translateX(-2px);
 }

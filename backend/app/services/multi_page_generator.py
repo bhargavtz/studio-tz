@@ -60,6 +60,21 @@ class MultiPageGenerator:
         """Generate HTML for a specific page."""
         soup = BeautifulSoup(base_html, 'html.parser')
         
+        # CRITICAL: Ensure Tailwind CDN is present
+        import re
+        head = soup.find('head')
+        if head:
+            tailwind_script = soup.find('script', src=re.compile(r'cdn\.tailwindcss\.com'))
+            if not tailwind_script:
+                # Add Tailwind CDN
+                new_tailwind = soup.new_tag('script', src='https://cdn.tailwindcss.com')
+                # Insert after last meta tag
+                last_meta = head.find_all('meta')
+                if last_meta:
+                    last_meta[-1].insert_after(new_tailwind)
+                else:
+                    head.insert(0, new_tailwind)
+        
         # Update title
         title_tag = soup.find('title')
         if title_tag:
@@ -73,15 +88,21 @@ class MultiPageGenerator:
         # Update navigation links
         self._update_navigation(soup, all_pages, page.get("slug", "/"))
         
-        # Generate page content
+        # Generate page content intelligently
         main_tag = soup.find('main')
         if main_tag:
-            main_tag.clear()
+            # Extract sections from page blueprint
+            page_sections = page.get("sections", [])
             
-            # Add sections for this page
-            for section in page.get("sections", []):
-                section_html = self._generate_section(section)
-                main_tag.append(BeautifulSoup(section_html, 'html.parser'))
+            if page_sections:
+                # Blueprint has specific sections for this page - use them
+                main_tag.clear()
+                for section in page_sections:
+                    section_html = self._generate_section(section)
+                    main_tag.append(BeautifulSoup(section_html, 'html.parser'))
+            else:
+                # No blueprint sections - intelligently extract from base HTML
+                self._extract_relevant_content_for_page(soup, main_tag, page, blueprint)
         
         return str(soup.prettify())
     
@@ -123,6 +144,66 @@ class MultiPageGenerator:
                 li.append(a)
                 nav_links.append(li)
     
+    def _extract_relevant_content_for_page(
+        self,
+        soup: BeautifulSoup,
+        main_tag: Any,
+        page: Dict[str, Any],
+        blueprint: Dict[str, Any]
+    ):
+        """Intelligently extract and keep only relevant content for this page type."""
+        page_slug = page.get("slug", "/").strip("/").lower()
+        page_title = page.get("title", "").lower()
+        
+        # Map page types to relevant section IDs/classes
+        page_type_mapping = {
+            "about": ["about", "team", "history", "mission", "legacy", "story"],
+            "services": ["services", "features", "offerings", "what-we-do", "expertise"],
+            "contact": ["contact", "get-in-touch", "reach-us", "contact-form"],
+            "portfolio": ["portfolio", "work", "projects", "gallery", "showcase"],
+            "products": ["products", "shop", "store", "catalog"],
+            "blog": ["blog", "articles", "news", "posts"],
+            "pricing": ["pricing", "plans", "packages"],
+        }
+        
+        # Determine page type
+        page_type = None
+        for ptype, keywords in page_type_mapping.items():
+            if any(keyword in page_slug or keyword in page_title for keyword in keywords):
+                page_type = ptype
+                break
+        
+        # If it's index/home, keep all sections
+        if page_slug in ["", "index", "home"]:
+            return  # Keep everything
+        
+        # If we identified a page type, filter sections
+        if page_type and page_type in page_type_mapping:
+            relevant_keywords = page_type_mapping[page_type]
+            
+            # Find all sections in main
+            sections = main_tag.find_all('section', recursive=False)
+            
+            for section in sections:
+                section_id = section.get('id', '').lower()
+                section_class = ' '.join(section.get('class', [])).lower()
+                
+                # Check if this section is relevant to the page type
+                is_relevant = any(
+                    keyword in section_id or keyword in section_class
+                    for keyword in relevant_keywords
+                )
+                
+                # Keep hero section always, remove irrelevant ones
+                if section_id != 'hero' and not is_relevant:
+                    section.decompose()
+        else:
+            # Unknown page type - keep first 2 sections (usually hero + main content)
+            sections = main_tag.find_all('section', recursive=False)
+            for i, section in enumerate(sections):
+                if i > 1:  # Keep only first 2 sections
+                    section.decompose()
+    
     def _generate_section(self, section: Dict[str, Any]) -> str:
         """Generate HTML for a section."""
         section_type = section.get("type", "content")
@@ -163,7 +244,7 @@ class MultiPageGenerator:
             return f'    <a href="#" class="btn btn-{variant}" data-ncd-id="{comp_id}" data-ncd-type="button">{content}</a>\n'
         
         elif comp_type == "image":
-            src = properties.get("src", "/assets/placeholder.jpg")
+            src = properties.get("src", "assets/placeholder.jpg")
             alt = properties.get("alt", content)
             return f'    <img src="{src}" alt="{alt}" data-ncd-id="{comp_id}" data-ncd-type="image">\n'
         

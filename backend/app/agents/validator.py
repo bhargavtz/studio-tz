@@ -34,8 +34,11 @@ class ValidatorAgent:
         if "<title>" not in html_content.lower():
             errors.append("Missing <title> tag")
         
-        if open_braces != close_braces:
-            errors.append(f"Unbalanced braces: {open_braces} open, {close_braces} close")
+        return len(errors) == 0, errors
+    
+    def validate_css(self, css_content: str) -> Tuple[bool, List[str]]:
+        """Validate CSS content."""
+        errors = []
         
         # Check for common syntax errors
         if ';;' in css_content:
