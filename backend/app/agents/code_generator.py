@@ -4,6 +4,9 @@ NCD INAI - Code Generator Agent
 Generates HTML, CSS, and JavaScript from blueprints.
 """
 
+import json
+import hashlib
+from functools import lru_cache
 from typing import Dict, Any
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
@@ -12,8 +15,9 @@ from langchain_core.output_parsers import JsonOutputParser
 from app.config import settings
 
 
-CODE_GENERATOR_PROMPT = """You are an **AWARD-WINNING FRONTEND ENGINEER & MOTION DESIGNER**.
-Your task is to take a blueprint and transform it into a **Production-Ready, High-Performance, and visually STUNNING website**.
+CODE_GENERATOR_PROMPT = """You are a **LEGENDARY ART DIRECTOR & PRINCIPAL FRONTEND ARCHITECT**.
+Your work has won countless Awwwards, FWA, and CSS Design Awards.
+Your mission is to transform this blueprint into a **DIGITAL MASTERPIECE**.
 
 Blueprint:
 {blueprint}
@@ -25,31 +29,28 @@ Blueprint:
     - **Custom CSS** is REQUIRED for animations, glassmorphism, and unique polish.
     - Vanilla JS (ES6+) for smooth interactions. NO JQuery. NO React.
 
-2.  **Zero-Boredom Policy**:
-    - EVERY interactive element (buttons, cards, links) MUST have a `:hover` and `:active` state.
-    - Use `transition-all duration-300` for smooth effects.
-    - Elements should "fade in" or "slide up" on scroll (using IntersectionObserver in JS).
+2.  **Visual Architecture**:
+    - **Typography Mastery**: Use the requested font `{fontFamily}`. Implement a strict type scale. Use `clamp()` for fluid typography (e.g., `font-size: clamp(2rem, 5vw, 4rem)`).
+    - **Elite Color Theory**: Utilize the palette ({primaryColor}, {secondaryColor}, etc.) but create depth using HSL adjustments for shadows, tints, and overlays.
+    - **Grids & Composition**: Use CSS Grid for complex layouts. Avoid the "boxed" look; let elements overlap or break the grid occasionally for a more designer feel.
+    - **Whitespace as a Feature**: Use "Breathable" spacing. Generous `py-24` or `py-32` sections.
 
-3.  **Visual Excellence**:
-    - **Glassmorphism**: Use `backdrop-filter: blur(12px)` and semi-transparent backgrounds for modern cards/navbars.
-    - **Typography**: Use the requested font, but ensure proper `line-height`, `letter-spacing`, and hierarchy.
-    - **Whitespace**: Use generous padding/margin. Do not cram content.
-    - **Hero Section**: Must be `min-h-screen`, vertically centered, with a compelling background (gradient or placeholder image).
+3.  **Production-Grade Engineering**:
+    - **Tailwind + Advanced CSS**: Use Tailwind for layout speed, but **Custom CSS** for "The Polish" (complex gradients, custom cubic-bezier transitions, noise textures).
+    - **Semantic Excellence**: Use `<section>`, `<article>`, `<nav>`, `<header>`, `<footer>`. 
+    - **Dark/Light Harmony**: Ensure the design is balanced and accessible.
 
-4.  **Content Intelligence**:
-    - **NEVER** output raw data structures (e.g., `['a', 'b']`). Always render as Lists or Grids.
-    - If no image is provided, use a stylish CSS Gradient placeholder, not a broken link.
-    - Navbar: Must be `fixed` top, glassmorphism style, with mobile hamburger menu functioning perfectly.
+4.  **Content Execution (CRITICAL)**:
+    - **NO DATA LEAKAGE**: NEVER output raw JSON/Lists like `["Item"]` in the HTML. 
+    - **LOOP & RENDER**: For every list in the blueprint, create a unique, high-end component (e.g., a Feature Card with an icon, heading, and description).
+    - **Premium Imagery**: Use the prompt `{style}` to guide asset selection. Use Unsplash URLs with specific keywords related to the industry.
+    - **Navbar**: Must be a "Sticky Glass" effect with a transition on scroll.
 
-### 🎨 DESIGN SYSTEM:
-- **Theme**:
-  * Primary: {primaryColor}
-  * Background: {backgroundColor}
-  * Text: {textColor}
-  * Font: {fontFamily}
-- **Style**: Execute the "{style}" look with precision.
-  - If "Minimal": Use lots of white space, thin borders.
-  - If "Bold": Use large text, high contrast, solid shadows.
+### 🎨 THE DESIGN STYLE: "{style}"
+- **If Minimalist Luxury**: Focus on whitespace, thin borders, monochrome with one accent, and exquisite serif/sans-serif pairing.
+- **If Bold Brutalist**: High contrast, thick borders, massive typography, overlapping elements, and vibrant colors.
+- **If Glassmorphism**: Heavy use of blurs, vibrant background gradients peeking through, and floating elements.
+- **If Soft Modern**: Rounded corners (`rounded-3xl`), soft shadows (`shadow-2xl`), pastel undertones, and friendly typography.
 
 ### 📂 OUTPUT FORMAT (JSON ONLY):
 Return a single JSON object. NO markdown.
@@ -116,7 +117,7 @@ class CodeGeneratorAgent:
         return self._chain
     
     async def generate(self, blueprint: Dict[str, Any]) -> Dict[str, str]:
-        """Generate HTML, CSS, and JS from blueprint."""
+        """Generate HTML (index), CSS, and JS from blueprint."""
         # Sanitize blueprint data to prevent XSS
         from app.utils.sanitize import sanitize_blueprint_data
         blueprint = sanitize_blueprint_data(blueprint)
@@ -144,6 +145,40 @@ class CodeGeneratorAgent:
             print(f"Code generation error: {e}")
             fallback = self._generate_fallback_code(blueprint)
             return self._inject_ncd_attributes(fallback, blueprint)
+
+    async def generate_page(self, blueprint: Dict[str, Any], page_id: str, base_css: str, base_js: str) -> str:
+        """Generate HTML for a specific page using existing CSS/JS context."""
+        pages = blueprint.get("pages", [])
+        page = next((p for p in pages if p["id"] == page_id), None)
+        if not page:
+            return ""
+
+        prompt = ChatPromptTemplate.from_template(CODE_GENERATOR_PROMPT + "\n\nCRITICAL: You are generating ONLY the HTML for the page '{page_title}' (slug: {slug}). Ensure it uses the existing styles and scripts. Output valid JSON with key 'html'.")
+        chain = prompt | self._get_llm() | JsonOutputParser()
+        
+        theme = blueprint.get("theme", {})
+        
+        try:
+            result = await chain.ainvoke({
+                "blueprint": self._format_blueprint({"pages": [page], "theme": theme}),
+                "page_title": page.get("title", ""),
+                "slug": page.get("slug", ""),
+                "primaryColor": theme.get("primaryColor", "#3B82F6"),
+                "secondaryColor": theme.get("secondaryColor", "#1E40AF"),
+                "backgroundColor": theme.get("backgroundColor", "#FFFFFF"),
+                "textColor": theme.get("textColor", "#1F2937"),
+                "accentColor": theme.get("accentColor", "#10B981"),
+                "fontFamily": theme.get("fontFamily", "Inter"),
+                "style": theme.get("style", "modern")
+            })
+            
+            html = result.get("html", "")
+            # Inject NCD into this page too
+            processed = self._inject_ncd_attributes({"html": html}, blueprint)
+            return processed.get("html", "")
+        except Exception as e:
+            print(f"Page generation error ({page_id}): {e}")
+            return ""
     
     def _inject_ncd_attributes(self, code: Dict[str, str], blueprint: Dict[str, Any]) -> Dict[str, str]:
         """Inject data-ncd-* attributes into HTML and create scoped CSS."""
@@ -205,9 +240,17 @@ class CodeGeneratorAgent:
         return code
     
     def _format_blueprint(self, blueprint: Dict[str, Any]) -> str:
-        """Format blueprint for the prompt."""
-        import json
-        return json.dumps(blueprint, indent=2)
+        """Format blueprint for the prompt with caching."""
+        # Create a cache key from the blueprint
+        blueprint_json = json.dumps(blueprint, sort_keys=True)
+        return self._cached_format(blueprint_json)
+    
+    @staticmethod
+    @lru_cache(maxsize=32)
+    def _cached_format(blueprint_json: str) -> str:
+        """Cached formatting - returns indented JSON."""
+        data = json.loads(blueprint_json)
+        return json.dumps(data, indent=2)
     
     def _format_pages_list(self, blueprint: Dict[str, Any]) -> str:
         """Format pages list for navigation generation."""

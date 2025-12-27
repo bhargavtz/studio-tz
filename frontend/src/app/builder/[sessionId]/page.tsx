@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
+import dynamicImport from 'next/dynamic';
 import styles from './page.module.css';
 import * as api from '@/lib/api';
 import { config } from '@/lib/config';
@@ -204,8 +205,7 @@ export default function BuilderPage() {
 
     const handleDownload = async () => {
         try {
-            const response = await fetch(`${config.apiUrl}/deploy/${sessionId}/download`);
-            const blob = await response.blob();
+            const blob = await api.downloadProject(sessionId);
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -647,11 +647,18 @@ export default function BuilderPage() {
 
                             {viewMode === 'preview' ? (
                                 <div className={`${styles.previewWrapper} ${deviceMode === 'mobile' ? styles.mobileMode : ''}`}>
-                                    <iframe
-                                        src={previewUrl}
-                                        className={styles.previewFrame}
-                                        title="Website Preview"
-                                    />
+                                    {previewUrl ? (
+                                        <iframe
+                                            src={previewUrl}
+                                            className={styles.previewFrame}
+                                            title="Website Preview"
+                                        />
+                                    ) : (
+                                        <div className={styles.previewPlaceholder}>
+                                            <div className={styles.spinner}></div>
+                                            <p>Generating your website preview...</p>
+                                        </div>
+                                    )}
                                 </div>
                             ) : (
                                 <div className={styles.codeEditorWrapper}>
