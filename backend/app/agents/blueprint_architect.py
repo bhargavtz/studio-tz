@@ -77,7 +77,7 @@ Create the Blueprint JSON:
         "textColor": "#hex",
         "accentColor": "#hex",
         "fontFamily": "Font Name",
-        "style": "glassmorphism|minimalist_luxury|bold_brutalist|soft_modern"
+        "style": "glassmorphism|minimalist_luxury|bold_brutalist|soft_modern|neo_brutalism|dark_luxury|futuristic_cyberpunk|clean_corporate"
     }},
     "global_styles": {{
         "borderRadius": "12px",

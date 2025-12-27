@@ -92,6 +92,7 @@ class FileManager:
             'blueprint.json',
             'domain.json',
             'questions.json',
+            'domain_questions.json',
             'session.json',
             'vision.json'
         }
@@ -127,6 +128,7 @@ class FileManager:
             'blueprint.json',
             'domain.json',
             'questions.json',
+            'domain_questions.json',
             'session.json',
             'vision.json'
         }

@@ -8,7 +8,15 @@ interface ThemePanelProps {
 }
 
 export default function ThemePanel({ sessionId, onThemeUpdate }: ThemePanelProps) {
-    const [theme, setTheme] = useState<api.Theme | null>(null);
+    const [theme, setTheme] = useState<api.Theme>({
+        primaryColor: '',
+        secondaryColor: '',
+        backgroundColor: '',
+        textColor: '',
+        accentColor: '',
+        fontFamily: '',
+        style: ''
+    });
     const [presets, setPresets] = useState<api.ThemePreset[]>([]);
     const [loading, setLoading] = useState(false);
 
@@ -22,7 +30,16 @@ export default function ThemePanel({ sessionId, onThemeUpdate }: ThemePanelProps
                 api.getTheme(sessionId),
                 api.getThemePresets(sessionId)
             ]);
-            setTheme(themeData);
+            // Ensure all properties have values (use empty string as fallback)
+            setTheme({
+                primaryColor: themeData.primaryColor || '',
+                secondaryColor: themeData.secondaryColor || '',
+                backgroundColor: themeData.backgroundColor || '',
+                textColor: themeData.textColor || '',
+                accentColor: themeData.accentColor || '',
+                fontFamily: themeData.fontFamily || '',
+                style: themeData.style || ''
+            });
             setPresets(presetsData.presets);
         } catch (err) {
             console.error('Failed to load theme data:', err);
@@ -30,9 +47,8 @@ export default function ThemePanel({ sessionId, onThemeUpdate }: ThemePanelProps
     }
 
     async function handleColorChange(key: keyof api.Theme, value: string) {
-        if (!theme) return;
 
-        const previousTheme: api.Theme | null = theme ? { ...theme } : null;
+        const previousTheme: api.Theme = { ...theme };
         const newTheme = { ...theme, [key]: value };
         setTheme(newTheme);
 
@@ -47,18 +63,18 @@ export default function ThemePanel({ sessionId, onThemeUpdate }: ThemePanelProps
             const result = await api.updateTheme(sessionId, updatePayload);
             onThemeUpdate(result.preview_url);
         } catch (err) {
-            if (previousTheme) {
-                setTheme(previousTheme);
-            } else {
-                setTheme(null);
-            }
+            setTheme(previousTheme);
             console.error('Failed to update theme:', err);
         }
     }
 
     async function handlePresetClick(preset: api.ThemePreset) {
-        const previousTheme = { ...theme };
-        const flatTheme: api.Theme = { ...preset.colors, fontFamily: preset.fontFamily, style: preset.style };
+        const previousTheme: api.Theme = { ...theme };
+        const flatTheme: api.Theme = {
+            ...preset.colors,
+            fontFamily: preset.fontFamily || '',
+            style: preset.style || ''
+        };
         setTheme(flatTheme);
         try {
             const result = await api.updateTheme(sessionId, { colors: preset.colors, fontFamily: preset.fontFamily, style: preset.style });
@@ -77,7 +93,7 @@ export default function ThemePanel({ sessionId, onThemeUpdate }: ThemePanelProps
         }
     }
 
-    if (!theme) return <div>Loading theme...</div>;
+    if (!theme.primaryColor) return <div>Loading theme...</div>;
 
     return (
         <div className={styles.container}>

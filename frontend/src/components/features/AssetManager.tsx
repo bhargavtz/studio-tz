@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import * as api from '@/lib/api';
+import { config } from '@/lib/config';
 import styles from './AssetManager.module.css';
 
 interface AssetManagerProps {
@@ -53,7 +54,7 @@ export default function AssetManager({ sessionId }: AssetManagerProps) {
     }
 
     function copyToClipboard(url: string) {
-        const fullUrl = `http://localhost:8000${url}`;
+        const fullUrl = `${config.apiUrl}${url}`;
         navigator.clipboard.writeText(fullUrl);
         alert('URL copied to clipboard!');
     }
@@ -81,7 +82,7 @@ export default function AssetManager({ sessionId }: AssetManagerProps) {
                 {assets.map((asset) => (
                     <div key={asset.filename} className={styles.assetCard}>
                         <div className={styles.preview}>
-                            <img src={`http://localhost:8000${asset.url}`} alt={asset.filename} />
+                            <img src={`${config.apiUrl}${asset.url}`} alt={asset.filename} />
                         </div>
                         <div className={styles.assetInfo}>
                             <span className={styles.filename} title={asset.filename}>

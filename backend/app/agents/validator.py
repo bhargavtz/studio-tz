@@ -153,3 +153,7 @@ class TagChecker(HTMLParser):
 
 # Singleton instance
 validator = ValidatorAgent()
+
+open_braces = 0
+close_braces = 0
+css_content = ''
