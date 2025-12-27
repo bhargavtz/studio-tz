@@ -145,6 +145,76 @@
     transform: scaleX(1);
 }
 
+/* ===== AUTH SECTION ===== */
+.authSection {
+    display: flex;
+    align-items: center;
+    gap: 3rem;
+}
+
+.authButtons {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.signInButton {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 10px;
+    color: rgba(255, 255, 255, 0.9);
+    font-weight: 500;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    backdrop-filter: blur(10px);
+}
+
+.signInButton:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(139, 92, 246, 0.5);
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(139, 92, 246, 0.2);
+}
+
+.userIcon {
+    font-size: 1.1rem;
+}
+
+.signUpButton {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    background: linear-gradient(135deg, #8B5CF6 0%, #3B82F6 100%);
+    border: none;
+    border-radius: 10px;
+    color: #ffffff;
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+}
+
+.signUpButton:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(139, 92, 246, 0.5);
+}
+
+.signUpButton .buttonArrow {
+    transition: transform 0.3s;
+}
+
+.signUpButton:hover .buttonArrow {
+    transform: translateX(4px);
+}
+
+
 /* ===== HERO SECTION ===== */
 .hero {
     position: relative;
@@ -740,6 +810,22 @@
 
     .nav {
         display: none;
+    }
+
+    .authSection {
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .authButtons {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .signInButton,
+    .signUpButton {
+        font-size: 0.9rem;
+        padding: 0.65rem 1.25rem;
     }
 
     .inputGroup {

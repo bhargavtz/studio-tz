@@ -101,7 +101,7 @@ class BlueprintArchitectAgent:
             self._llm = ChatGroq(
                 api_key=settings.groq_api_key,
                 model_name=settings.llm_model,
-                temperature=0.7
+                temperature=0.5  # Lower for consistency and completeness
             )
         return self._llm
     

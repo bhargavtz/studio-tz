@@ -22,12 +22,12 @@ Your mission is to transform this blueprint into a **DIGITAL MASTERPIECE**.
 Blueprint:
 {blueprint}
 
-### 💎 THE "ELITE" STANDARD (NON-NEGOTIABLE):
-1.  **Immersive Dynamics (The "Soul" of the site)**:
-    - **Micro-interactions**: EVERY clickable element must feel alive. Use subtle scale transforms, color shifts, and shadow changes.
-    - **Scroll Revelations**: Elements should not just "appear". Use a combination of `opacity`, `translateY`, and `scale` for elegant entrance animations.
-    - **Parallax & Depth**: Use `transform: translateZ(0)` for hardware acceleration. Suggest or implement subtle parallax on backgrounds.
-    - **Glassmorphism 2.0**: Don't just blur. Use `backdrop-filter: blur(16px) saturate(180%)`, thin translucent borders (`border: 1px solid rgba(255,255,255,0.1)`), and soft inner glows.
+### 🏆 EXPERT STANDARDS (STRICT):
+1.  **Tech Stack**:
+    - HTML5 (Semantic, Accessible, SEO-optimized). usage of `<section>`, `<article>`, `<nav>` is MANDATORY.
+    - **Tailwind CSS (CDN) - MANDATORY**: You MUST include `<script src="https://cdn.tailwindcss.com"></script>` in <head>
+    - **Custom CSS** is REQUIRED for animations, glassmorphism, and unique polish.
+    - Vanilla JS (ES6+) for smooth interactions. NO JQuery. NO React.
 
 2.  **Visual Architecture**:
     - **Typography Mastery**: Use the requested font `{fontFamily}`. Implement a strict type scale. Use `clamp()` for fluid typography (e.g., `font-size: clamp(2rem, 5vw, 4rem)`).
@@ -55,17 +55,41 @@ Blueprint:
 ### 📂 OUTPUT FORMAT (JSON ONLY):
 Return a single JSON object. NO markdown.
 {{
-    "html": "...", 
-    "css": "/* Extensive custom styles including keyframes and root variables */",
-    "js": "/* Robust interaction logic, scroll observers, and mobile navigation */"
+    "html": "<!DOCTYPE html>...<head>...<script src='https://cdn.tailwindcss.com'></script><link rel='stylesheet' href='styles/main.css'>...</head>...<script src='scripts/main.js'></script>...",
+    "css": "/* styles/main.css */\n:root {{ ... }} \n/* Custom Animations */\n@keyframes fadeInUp {{ ... }} ...",
+    "js": "// scripts/main.js \n// Mobile Menu Logic \n// Scroll Animations ..."
 }}
 
-### 🚀 THE "FINAL POLISH" CHECKLIST:
-1.  **Mobile-First**: Is the mobile experience as premium as the desktop?
-2.  **Performance**: Use optimized CSS; avoid redundant rules.
-3.  **No Dead Ends**: Active links, working buttons (even if simulated), and clear focus states.
+### 🚀 FINAL CHECKS:
+1.  **Mobile Responsive**: Grid columns must collapse to 1 on mobile (`grid-cols-1 md:grid-cols-3`).
+2.  **Navigation Links**: 
+    - MULTI-PAGE SITES: Use page links (href="about.html", href="contact.html") - See {{pages_list}}
+    - SINGLE-PAGE SITES: Use anchor links (href="#about", href="#contact")
+    - CRITICAL: If {{pages_list}} has multiple items, navigation MUST use .html links!
+3.  **Console-Free**: Write robust JS that doesn't error if an element is missing.
 
-Craft this like it's your audition for the world's top design agency.
+### ⚠️ CRITICAL COMPLETENESS RULES (MUST FOLLOW):
+1.  **NO EMPTY SECTIONS**: Every section must have complete, visible content
+2.  **NO BROKEN LAYOUTS**: All grid items must have proper content (no empty yellow/beige boxes!)
+3.  **NO RAW DATA**: Never output arrays like ['item1', 'item2'] - render as proper lists/grids
+4.  **NO PLACEHOLDERS**: If blueprint data is missing, generate realistic content instead
+5.  **VISUAL QUALITY TEST**: Before submitting, ask yourself: "Would this impress a client?"
+6.  **COMPLETE GRIDS**: If using grid-cols-3, ensure exactly 3 (or 6, 9, etc.) items with full content
+7.  **PROPER BACKGROUNDS**: Card backgrounds must contrast with section backgrounds
+8.  **MINIMUM CONTENT**: Each feature card needs: icon, heading, 2+ sentence description
+9.  **REALISTIC TEXT**: Use industry-appropriate, professional copy - not generic filler
+10. **BALANCED LAYOUT**: Sections should have proper padding (min 5rem top/bottom)
+
+### 🔴 MANDATORY HTML STRUCTURE:
+Your HTML <head> MUST include in this exact order:
+1. <meta charset="UTF-8">
+2. <meta name="viewport" content="width=device-width, initial-scale=1.0">
+3. <title>...</title>
+4. <script src="https://cdn.tailwindcss.com"></script>
+5. <link rel="stylesheet" href="styles/main.css">
+6. <link href="https://fonts.googleapis.com/css2?family={{fontFamily}}...">
+
+Build it like you are trying to win an Awwwards Site of the Day.
 Respond ONLY with valid JSON."""
 
 
@@ -81,7 +105,7 @@ class CodeGeneratorAgent:
             self._llm = ChatGroq(
                 api_key=settings.groq_api_key,
                 model_name=settings.llm_model,
-                temperature=0.7
+                temperature=0.6  # Balanced: creative but consistent
             )
         return self._llm
     
@@ -101,9 +125,11 @@ class CodeGeneratorAgent:
         theme = blueprint.get("theme", {})
         
         try:
-            # Generate the primary version (index.html, main.css, main.js)
+            pages_list = self._format_pages_list(blueprint)
+            
             result = await self._get_chain().ainvoke({
                 "blueprint": self._format_blueprint(blueprint),
+                "pages_list": pages_list,
                 "primaryColor": theme.get("primaryColor", "#3B82F6"),
                 "secondaryColor": theme.get("secondaryColor", "#1E40AF"),
                 "backgroundColor": theme.get("backgroundColor", "#FFFFFF"),
@@ -226,6 +252,28 @@ class CodeGeneratorAgent:
         data = json.loads(blueprint_json)
         return json.dumps(data, indent=2)
     
+    def _format_pages_list(self, blueprint: Dict[str, Any]) -> str:
+        """Format pages list for navigation generation."""
+        pages = blueprint.get("pages", [])
+        
+        if not pages or len(pages) <= 1:
+            return "SINGLE PAGE - Use anchor links (#)"
+        
+        # Multiple pages - list them
+        page_links = []
+        for page in pages:
+            title = page.get("title", "Page")
+            slug = page.get("slug", "/").strip("/")
+            
+            if slug == "" or slug == "index":
+                filename = "index.html"  
+            else:
+                filename = f"{slug}.html"
+            
+            page_links.append(f"- {title}: {filename}")
+        
+        return "MULTIPLE PAGES - Use .html links:\n" + "\n".join(page_links)
+    
     def _generate_fallback_code(self, blueprint: Dict[str, Any]) -> Dict[str, str]:
         """Generate fallback code if AI fails."""
         name = blueprint.get("name", "My Website")
@@ -274,28 +322,54 @@ class CodeGeneratorAgent:
 
         <section id="about" class="about py-20 bg-white">
             <div class="container mx-auto px-6">
-                <h2 class="text-3xl md:text-4xl font-bold text-center mb-12 text-gray-800">About Us</h2>
-                <div class="max-w-3xl mx-auto text-center text-lg text-gray-600">
-                    <p>We are dedicated to providing the best service possible. Our team of experts is here to help you achieve your goals.</p>
+                <h2 class="text-3xl md:text-4xl font-bold text-center mb-4 text-gray-800">About Us</h2>
+                <p class="text-center text-gray-600 mb-12 max-w-2xl mx-auto">Delivering excellence through innovation and expertise</p>
+                <div class="grid md:grid-cols-2 gap-12 items-center max-w-5xl mx-auto">
+                    <div>
+                        <p class="text-lg text-gray-700 mb-6">We are dedicated to providing the best service possible. Our team of experts brings years of experience and cutting-edge knowledge to every project.</p>
+                        <p class="text-lg text-gray-700">Through innovation, dedication, and a customer-first approach, we help businesses achieve their goals and exceed expectations.</p>
+                    </div>
+                    <div class="grid grid-cols-2 gap-6">
+                        <div class="text-center p-6 bg-blue-50 rounded-lg">
+                            <div class="text-4xl font-bold text-primary mb-2">500+</div>
+                            <div class="text-gray-600">Happy Clients</div>
+                        </div>
+                        <div class="text-center p-6 bg-blue-50 rounded-lg">
+                            <div class="text-4xl font-bold text-primary mb-2">10+</div>
+                            <div class="text-gray-600">Years Experience</div>
+                        </div>
+                        <div class="text-center p-6 bg-blue-50 rounded-lg">
+                            <div class="text-4xl font-bold text-primary mb-2">1000+</div>
+                            <div class="text-gray-600">Projects Done</div>
+                        </div>
+                        <div class="text-center p-6 bg-blue-50 rounded-lg">
+                            <div class="text-4xl font-bold text-primary mb-2">98%</div>
+                            <div class="text-gray-600">Satisfaction</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </section>
 
         <section id="services" class="services py-20 bg-gray-50">
             <div class="container mx-auto px-6">
-                <h2 class="text-3xl md:text-4xl font-bold text-center mb-12 text-gray-800">Our Services</h2>
+                <h2 class="text-3xl md:text-4xl font-bold text-center mb-4 text-gray-800">Our Services</h2>
+                <p class="text-center text-gray-600 mb-12 max-w-2xl mx-auto">We provide comprehensive solutions tailored to your needs</p>
                 <div class="grid md:grid-cols-3 gap-8">
-                    <div class="service-card bg-white p-8 rounded-xl shadow-sm hover:shadow-md transition-shadow">
-                        <h3 class="text-xl font-bold mb-4 text-primary">Service One</h3>
-                        <p class="text-gray-600">Description of our first service.</p>
+                    <div class="service-card bg-white p-8 rounded-xl shadow-sm hover:shadow-md transition-all hover:-translate-y-1">
+                        <div class="text-4xl mb-4">🚀</div>
+                        <h3 class="text-xl font-bold mb-4 text-primary">Fast & Reliable</h3>
+                        <p class="text-gray-600">Experience lightning-fast performance with our optimized solutions. We ensure your success with proven reliability and cutting-edge technology.</p>
                     </div>
-                    <div class="service-card bg-white p-8 rounded-xl shadow-sm hover:shadow-md transition-shadow">
-                        <h3 class="text-xl font-bold mb-4 text-primary">Service Two</h3>
-                        <p class="text-gray-600">Description of our second service.</p>
+                    <div class="service-card bg-white p-8 rounded-xl shadow-sm hover:shadow-md transition-all hover:-translate-y-1">
+                        <div class="text-4xl mb-4">💎</div>
+                        <h3 class="text-xl font-bold mb-4 text-primary">Premium Quality</h3>
+                        <p class="text-gray-600">We deliver exceptional quality in every project. Our attention to detail and commitment to excellence sets us apart from the competition.</p>
                     </div>
-                    <div class="service-card bg-white p-8 rounded-xl shadow-sm hover:shadow-md transition-shadow">
-                        <h3 class="text-xl font-bold mb-4 text-primary">Service Three</h3>
-                        <p class="text-gray-600">Description of our third service.</p>
+                    <div class="service-card bg-white p-8 rounded-xl shadow-sm hover:shadow-md transition-all hover:-translate-y-1">
+                        <div class="text-4xl mb-4">🎯</div>
+                        <h3 class="text-xl font-bold mb-4 text-primary">Results Driven</h3>
+                        <p class="text-gray-600">Our data-driven approach ensures measurable results. We focus on what matters most - helping you achieve your business goals and objectives.</p>
                     </div>
                 </div>
             </div>

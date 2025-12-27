@@ -53,6 +53,21 @@ class Settings:
         
         # Ensure projects directory exists
         self.projects_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Database Configuration (Neon PostgreSQL)
+        self.use_database: bool = os.getenv("USE_DATABASE", "false").lower() == "true"
+        self.database_url: str = os.getenv("DATABASE_URL", "")
+        self.database_pool_size: int = int(os.getenv("DATABASE_POOL_SIZE", "10"))
+        self.database_max_overflow: int = int(os.getenv("DATABASE_MAX_OVERFLOW", "20"))
+        
+        # R2 Object Storage Configuration (Cloudflare)
+        self.use_r2_storage: bool = os.getenv("USE_R2_STORAGE", "false").lower() == "true"
+        self.r2_account_id: str = os.getenv("R2_ACCOUNT_ID", "")
+        self.r2_access_key_id: str = os.getenv("R2_ACCESS_KEY_ID", "")
+        self.r2_secret_access_key: str = os.getenv("R2_SECRET_ACCESS_KEY", "")
+        self.r2_bucket_name: str = os.getenv("R2_BUCKET_NAME", "ncd-inai-files")
+        self.r2_endpoint: str = os.getenv("R2_ENDPOINT", f"https://{self.r2_account_id}.r2.cloudflarestorage.com")
+        self.r2_public_url: str = os.getenv("R2_PUBLIC_URL", "https://files.yourdomain.com")
 
 
 

@@ -1,13 +1,15 @@
 """
-NCD INAI - Questions Router
+NCD INAI - Questions Router (Database Version)
 """
 
 from typing import List, Dict, Any
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
+import uuid
 
-from app.services.session_manager import session_manager
-from app.models.session import SessionStatus
+from app.database.connection import get_db
+from app.database import crud
 from app.agents.question_generator import question_generator
 
 router = APIRouter()
@@ -92,9 +94,17 @@ class AnswersResponse(BaseModel):
 
 
 @router.get("/questions/{session_id}", response_model=QuestionsResponse)
-async def get_questions(session_id: str):
+async def get_questions(
+    session_id: str,
+    db: AsyncSession = Depends(get_db)
+):
     """Get or generate domain-specific questions."""
-    session = session_manager.get_session(session_id)
+    try:
+        session_uuid = uuid.UUID(session_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid session ID")
+    
+    session = await crud.get_session(db, session_uuid)
     
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -108,36 +118,42 @@ async def get_questions(session_id: str):
     # Check if questions already generated
     if session.questions:
         return QuestionsResponse(
-            session_id=session.id,
+            session_id=str(session.id),
             questions=session.questions,
             total_questions=len(session.questions)
         )
     
-    # Generate questions
-    questions = await question_generator.generate(session.domain)
+    # Generate questions - need to convert domain dict to object
+    from app.models.session import DomainClassification
+    domain_obj = DomainClassification(**session.domain)
+    
+    questions = await question_generator.generate(domain_obj)
     session.questions = questions
-    session.status = SessionStatus.QUESTIONS_GENERATED
+    session.status = "questions_generated"
     
-    # Save questions
-    session_manager.save_json_file(
-        session_id,
-        "domain_questions.json",
-        {"domain": session.domain.domain, "questions": questions}
-    )
-    
-    session_manager.update_session(session)
+    await db.commit()
+    await db.refresh(session)
     
     return QuestionsResponse(
-        session_id=session.id,
+        session_id=str(session.id),
         questions=questions,
         total_questions=len(questions)
     )
 
 
 @router.post("/answers/{session_id}", response_model=AnswersResponse)
-async def submit_answers(session_id: str, request: AnswersRequest):
+async def submit_answers(
+    session_id: str,
+    request: AnswersRequest,
+    db: AsyncSession = Depends(get_db)
+):
     """Submit answers to the questions."""
-    session = session_manager.get_session(session_id)
+    try:
+        session_uuid = uuid.UUID(session_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid session ID")
+    
+    session = await crud.get_session(db, session_uuid)
     
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -162,20 +178,14 @@ async def submit_answers(session_id: str, request: AnswersRequest):
     
     # Store validated answers
     session.answers = validated_answers
-    session.status = SessionStatus.ANSWERS_COLLECTED
+    session.status = "answers_collected"
     
-    # Save answers
-    session_manager.save_json_file(
-        session_id,
-        "answers.json",
-        validated_answers
-    )
-    
-    session_manager.update_session(session)
+    await db.commit()
+    await db.refresh(session)
     
     return AnswersResponse(
-        session_id=session.id,
-        status=session.status.value,
+        session_id=str(session.id),
+        status=session.status,
         answers_count=len(validated_answers),
         message="Answers saved. Ready to generate blueprint."
     )

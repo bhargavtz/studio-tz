@@ -13,47 +13,77 @@ from app.config import settings
 from app.models.session import DomainClassification
 
 
-QUESTION_GENERATOR_PROMPT = """You are a WORLD-CLASS BUSINESS CONSULTANT & UX STRATEGIST.
-Your task is to conduct a high-level deep-dive interview to perfectly align a website's design with the client's strategic vision.
+QUESTION_GENERATOR_PROMPT = """You are a FRIENDLY BUSINESS HELPER.
+Your task is to ask SIMPLE, EASY questions to understand what kind of website the user wants to build.
 
-You are crafting specific, high-impact questions for a {domain} business in the {industry} sector.
+You are helping someone create a {domain} website in the {industry} sector.
 
-Your Goal: Extract the "Soul" of the brand to enable an award-winning digital presence.
+**CRITICAL RULES:**
+1. **START SIMPLE**: First questions MUST be very basic (website name, what they do)
+2. **NO TECHNICAL JARGON**: Never ask about hosting, deployment, technical specs, frameworks
+3. **PROGRESSIVE DIFFICULTY**: Start with easy questions, gradually get more detailed
+4. **KEEP IT SHORT**: Maximum 6-8 questions total
+5. **USE SIMPLE LANGUAGE**: Write like you're talking to a friend, not a business consultant
 
-GUIDELINES FOR QUESTIONS:
-1.  **Be Specific & Strategic**: Do NOT ask "What services do you offer?". Instead ask "Which of your services generates the most revenue, and which do you want to highlight for growth?"
-2.  **Focus on Emotion & Vibe**: tailored questions about the *feeling* of the site. (e.g., "Should users feel excited and energized, or calm and reassured?")
-3.  **Understand the User Journey**: Ask about what the primary conversion goal is (leads, sales, calls, brand awareness).
-4.  **Visual DNA**: Ask about specific visual influencers or competitors they admire or despise.
-5.  **Language**: Use professional, engaging, and confident language. No "intern-speak".
+**QUESTION STRUCTURE:**
+Create questions in TWO levels:
 
-Generate 8-10 questions that cover:
-- Core Value Proposition & Competitive Edge
-- Target Audience Persona (Who are we trying to impress?)
-- Primary User Action/Conversion Goal
-- Aesthetic Preferences (Luxury, Minimal, Bold, Trustworthy, etc.)
-- Specific Features needed for this specific Domain.
+**BASIC LEVEL (First 3-4 questions - REQUIRED):**
+- Website name (ALWAYS first question)
+- Business tagline or short description
+- What does the business do (in simple words)
+- Basic business description
 
-DO NOT ask:
-- "What is your business name?" (We know this)
-- Generic "What features do you want?" (You are the expert, suggest them later)
-- Technical questions the client wouldn't know.
+**INTERMEDIATE LEVEL (Next 3-4 questions - REQUIRED):**
+- Target audience (who will visit the site)
+- Main pages needed (Home, About, Services, Contact, etc.)
+- Key services or products to highlight
+- Preferred style/mood (Modern, Professional, Colorful, Minimal, etc.) - keep options simple
 
-Format as a JSON object:
+**ABSOLUTELY FORBIDDEN TO ASK:**
+- Hosting details or where to deploy
+- Technical specifications
+- Advanced color theory or design systems
+- Complex styling preferences
+- Framework choices
+- SEO strategies
+- Analytics or tracking
+- Any question a non-technical person wouldn't understand
+
+**FORMAT:**
+Each question MUST include a "level" field.
+
 {{
     "questions": [
         {{
             "id": "q1",
+            "question": "What is the name of your website or business?",
+            "type": "text",
+            "level": "BASIC",
+            "options": [],
+            "required": true,
+            "placeholder": "e.g., My Awesome Store"
+        }},
+        {{
+            "id": "q2",
             "question": "...",
-            "type": "text|textarea|select|multiselect|yesno",
+            "type": "text|textarea|select|multiselect",
+            "level": "BASIC|INTERMEDIATE",
             "options": ["Option 1", "Option 2"],
             "required": true,
-            "placeholder": "e.g., ..."
+            "placeholder": "..."
         }}
     ]
 }}
 
-Ensure the questions feel like a Premium Consultation session.
+**REMEMBER:**
+- Question 1 MUST ALWAYS be "What is the name of your website or business?"
+- Total 6-8 questions maximum
+- First 3-4 are BASIC level
+- Next 3-4 are INTERMEDIATE level
+- NO advanced/technical questions
+- Use friendly, simple language
+
 Respond ONLY with valid JSON."""
 
 
@@ -99,67 +129,57 @@ class QuestionGeneratorAgent:
         return [
             {
                 "id": "q1",
-                "question": "What is your business name?",
+                "question": "What is the name of your website or business?",
                 "type": "text",
+                "level": "BASIC",
                 "options": [],
                 "required": True,
-                "placeholder": "Enter your business name"
+                "placeholder": "e.g., My Awesome Business"
             },
             {
-                "id": "q2", 
-                "question": "Describe your main services or products.",
+                "id": "q2",
+                "question": "Write a short tagline or description for your business",
+                "type": "text",
+                "level": "BASIC",
+                "options": [],
+                "required": True,
+                "placeholder": "e.g., Fresh coffee delivered to your door"
+            },
+            {
+                "id": "q3", 
+                "question": "What does your business do? (in simple words)",
                 "type": "textarea",
+                "level": "BASIC",
                 "options": [],
                 "required": True,
-                "placeholder": "Tell us what you offer..."
-            },
-            {
-                "id": "q3",
-                "question": "Who is your target audience?",
-                "type": "text",
-                "options": [],
-                "required": True,
-                "placeholder": "e.g., Young professionals, families, businesses"
+                "placeholder": "Tell us briefly what you offer..."
             },
             {
                 "id": "q4",
-                "question": "What makes you different from competitors?",
-                "type": "textarea",
+                "question": "Who are your main customers?",
+                "type": "text",
+                "level": "INTERMEDIATE",
                 "options": [],
-                "required": False,
-                "placeholder": "Your unique selling points..."
+                "required": True,
+                "placeholder": "e.g., Young professionals, families, small businesses"
             },
             {
                 "id": "q5",
-                "question": "What's the preferred color scheme or style?",
-                "type": "select",
-                "options": ["Modern & Minimal", "Bold & Vibrant", "Elegant & Professional", "Warm & Friendly", "Dark & Sophisticated"],
+                "question": "Which pages do you need on your website?",
+                "type": "multiselect",
+                "level": "INTERMEDIATE",
+                "options": ["Home", "About", "Services", "Products", "Contact", "Blog"],
                 "required": True,
                 "placeholder": ""
             },
             {
                 "id": "q6",
-                "question": "Do you need a contact form?",
-                "type": "yesno",
-                "options": [],
+                "question": "What style do you prefer for your website?",
+                "type": "select",
+                "level": "INTERMEDIATE",
+                "options": ["Modern & Clean", "Colorful & Fun", "Professional & Elegant", "Simple & Minimal"],
                 "required": True,
                 "placeholder": ""
-            },
-            {
-                "id": "q7",
-                "question": "What pages do you need?",
-                "type": "multiselect",
-                "options": ["Home", "About", "Services", "Portfolio", "Contact", "Blog", "Pricing"],
-                "required": True,
-                "placeholder": ""
-            },
-            {
-                "id": "q8",
-                "question": "Any additional features or requirements?",
-                "type": "textarea",
-                "options": [],
-                "required": False,
-                "placeholder": "Special requests, integrations, etc."
             }
         ]
 

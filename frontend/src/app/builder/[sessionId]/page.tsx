@@ -6,38 +6,22 @@ import dynamicImport from 'next/dynamic';
 import styles from './page.module.css';
 import * as api from '@/lib/api';
 import { config } from '@/lib/config';
-
-// Lazy load heavy components for better initial load performance
-const ThemePanel = dynamicImport(() => import('@/components/features/ThemePanel'), {
-    loading: () => <div className={styles.lazyLoading}>Loading themes...</div>,
-    ssr: false
-});
-
-const AssetManager = dynamicImport(() => import('@/components/features/AssetManager'), {
-    loading: () => <div className={styles.lazyLoading}>Loading assets...</div>,
-    ssr: false
-});
-
-const PageManager = dynamicImport(() => import('@/components/features/PageManager'), {
-    loading: () => <div className={styles.lazyLoading}>Loading pages...</div>,
-    ssr: false
-});
-
-const MonacoCodeViewer = dynamicImport(() => import('@/components/features/MonacoCodeViewer'), {
-    loading: () => <div className={styles.lazyLoading}>Loading code editor...</div>,
-    ssr: false
-});
+import ThemePanel from '@/components/features/ThemePanel';
+import AssetManager from '@/components/features/AssetManager';
+import PageManager from '@/components/features/PageManager';
+import MonacoCodeViewer from '@/components/features/MonacoCodeViewer';
+import { SignInButton, SignUpButton, SignedIn, SignedOut, UserButton } from '@clerk/nextjs';
 
 // Force dynamic rendering (no static generation during build)
 export const dynamic = 'force-dynamic';
 
-type BuilderStep = 'questions' | 'blueprint' | 'preview';
+type BuilderStep = 'intent' | 'questions' | 'blueprint' | 'preview';
 
 export default function BuilderPage() {
     const params = useParams();
     const sessionId = params.sessionId as string;
 
-    const [step, setStep] = useState<BuilderStep>('questions');
+    const [step, setStep] = useState<BuilderStep>('intent');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
@@ -45,6 +29,7 @@ export default function BuilderPage() {
     const [session, setSession] = useState<api.Session | null>(null);
     const [questions, setQuestions] = useState<api.Question[]>([]);
     const [answers, setAnswers] = useState<Record<string, unknown>>({});
+    const [intentText, setIntentText] = useState('');
     const [blueprint, setBlueprint] = useState<api.Blueprint | null>(null);
     const [previewUrl, setPreviewUrl] = useState('');
     const [generating, setGenerating] = useState(false);
@@ -52,7 +37,55 @@ export default function BuilderPage() {
     const [chatMessage, setChatMessage] = useState('');
     const [chatHistory, setChatHistory] = useState<Array<{ role: 'user' | 'ai'; content: string }>>([]);
     const [isTyping, setIsTyping] = useState(false);
-    const [activeTab, setActiveTab] = useState<'chat' | 'theme' | 'pages' | 'assets' | 'code'>('chat');
+
+    // Resizable panels
+    const [previewWidth, setPreviewWidth] = useState(65); // percentage
+    const [isResizing, setIsResizing] = useState(false);
+
+    // Handle panel resize
+    const handleMouseDown = () => {
+        setIsResizing(true);
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+        if (!isResizing) return;
+
+        const container = document.querySelector(`.${styles.previewContainer}`);
+        if (!container) return;
+
+        const containerRect = container.getBoundingClientRect();
+        const newWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100;
+
+        // Constrain between 30% and 80%
+        if (newWidth >= 30 && newWidth <= 80) {
+            setPreviewWidth(newWidth);
+        }
+    };
+
+    const handleMouseUp = () => {
+        setIsResizing(false);
+    };
+
+    useEffect(() => {
+        if (isResizing) {
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+            document.body.style.cursor = 'ew-resize';
+            document.body.style.userSelect = 'none';
+        } else {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        }
+
+        return () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        };
+    }, [isResizing]);
     const [deviceMode, setDeviceMode] = useState<'desktop' | 'mobile'>('desktop');
     const [viewMode, setViewMode] = useState<'preview' | 'code'>('preview');
 
@@ -67,7 +100,8 @@ export default function BuilderPage() {
                 if (sessionData.files_generated.length > 0) {
                     setStep('preview');
                     const preview = await api.getPreviewUrl(sessionId);
-                    setPreviewUrl(`${config.apiUrl}${preview.preview_url}`);
+                    // Use actual R2 URL for index.html (already complete URL)
+                    setPreviewUrl(preview.preview_urls['index.html'] || '');
                 } else if (sessionData.blueprint_confirmed) {
                     setStep('preview');
                 } else if (sessionData.status === 'blueprint_generated') {
@@ -90,9 +124,7 @@ export default function BuilderPage() {
                     const qs = await api.getQuestions(sessionId);
                     setQuestions(qs.questions);
                     setStep('questions');
-                } else if (sessionData.status === 'intent_processed') {
-                    setStep('questions');
-                } else if (sessionData.status === 'domain_identified') {
+                } else if (sessionData.status === 'intent_processed' || sessionData.status === 'domain_identified') {
                     setStep('questions');
                     try {
                         const questionsData = await api.getQuestions(sessionId);
@@ -100,6 +132,9 @@ export default function BuilderPage() {
                     } catch (err) {
                         console.warn('Questions not ready:', err);
                     }
+                } else {
+                    // Fresh session - start with intent
+                    setStep('intent');
                 }
             } catch (err) {
                 console.error('Failed to load session:', err);
@@ -114,6 +149,25 @@ export default function BuilderPage() {
 
     const handleAnswerChange = (questionId: string, value: unknown) => {
         setAnswers(prev => ({ ...prev, [questionId]: value }));
+    };
+
+    const handleSubmitIntent = async () => {
+        if (!intentText.trim()) return;
+
+        try {
+            setLoading(true);
+            // Process intent with backend
+            await api.processIntent(sessionId, intentText);
+            // Get questions
+            const questionsData = await api.getQuestions(sessionId);
+            setQuestions(questionsData.questions);
+            setStep('questions');
+        } catch (err) {
+            console.error('Failed to process intent:', err);
+            setError('Failed to process your request. Please try again.');
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleSubmitAnswers = async () => {
@@ -138,7 +192,8 @@ export default function BuilderPage() {
             await api.confirmBlueprint(sessionId);
             // Then generate the website
             const result = await api.generateWebsite(sessionId);
-            setPreviewUrl(`${config.apiUrl}${result.preview_url}`);
+            // Use actual R2 URL (already complete, don't prepend API URL)
+            setPreviewUrl(result.preview_urls['index.html'] || '');
             setStep('preview');
         } catch (err) {
             console.error('Failed to generate website:', err);
@@ -185,8 +240,9 @@ export default function BuilderPage() {
 
             if (result.success && result.preview_url) {
                 // Force iframe reload with timestamp
+                // R2 URL is already complete, just add cache-busting param
                 const timestamp = new Date().getTime();
-                setPreviewUrl(`${config.apiUrl}${result.preview_url}?t=${timestamp}`);
+                setPreviewUrl(`${result.preview_url}?t=${timestamp}`);
             }
 
             // Auto-scroll after AI response
@@ -242,19 +298,45 @@ export default function BuilderPage() {
                     NCD INAI
                 </a>
                 <div className={styles.steps}>
+                    <div className={`${styles.stepIndicator} ${step === 'intent' ? styles.active : ''} ${['questions', 'blueprint', 'preview'].includes(step) ? styles.completed : ''}`}>
+                        <span>1</span> Intent
+                    </div>
+                    <div className={styles.stepDivider}></div>
                     <div className={`${styles.stepIndicator} ${step === 'questions' ? styles.active : ''} ${['blueprint', 'preview'].includes(step) ? styles.completed : ''}`}>
-                        <span>1</span> Questions
+                        <span>2</span> Questions
                     </div>
                     <div className={styles.stepDivider}></div>
                     <div className={`${styles.stepIndicator} ${step === 'blueprint' ? styles.active : ''} ${step === 'preview' ? styles.completed : ''}`}>
-                        <span>2</span> Blueprint
+                        <span>3</span> Blueprint
                     </div>
                     <div className={styles.stepDivider}></div>
                     <div className={`${styles.stepIndicator} ${step === 'preview' ? styles.active : ''}`}>
-                        <span>3</span> Preview
+                        <span>4</span> Preview
                     </div>
                 </div>
                 <div className={styles.headerActions}>
+                    <div className={styles.authButtons}>
+                        <SignedOut>
+                            <SignInButton mode="modal">
+                                <button className={styles.signInBtn}>
+                                    <span>👤</span>
+                                    <span>Sign In</span>
+                                </button>
+                            </SignInButton>
+                            <SignUpButton mode="modal">
+                                <button className={styles.signUpBtn}>
+                                    <span>Sign Up</span>
+                                    <span>→</span>
+                                </button>
+                            </SignUpButton>
+                        </SignedOut>
+                        <SignedIn>
+                            <a href="/dashboard" className={styles.dashboardLink}>
+                                ← Dashboard
+                            </a>
+                            <UserButton afterSignOutUrl="/" />
+                        </SignedIn>
+                    </div>
                     {step === 'preview' && (
                         <button onClick={handleDownload} className={styles.downloadBtn}>
                             ⬇ Download
@@ -264,6 +346,79 @@ export default function BuilderPage() {
             </header>
 
             <main className={styles.main}>
+                {/* Intent Step */}
+                {step === 'intent' && (
+                    <div className={styles.questionsContainer}>
+                        <div className={styles.questionsHeader}>
+                            <h1>✨ What kind of website do you want to create?</h1>
+                            <p>Describe your vision and our AI will bring it to life in seconds</p>
+                        </div>
+
+                        <div className={styles.intentBox}>
+                            <textarea
+                                className={styles.intentTextarea}
+                                value={intentText}
+                                onChange={(e) => setIntentText(e.target.value)}
+                                placeholder="Example: I need a modern restaurant website with an interactive menu, photo gallery, and online booking system... or I want a photography portfolio with a stunning gallery and contact form..."
+                                rows={7}
+                                autoFocus
+                            />
+
+                            <div className={styles.examplePrompts}>
+                                <p>✨ Quick Start Templates</p>
+                                <button onClick={() => setIntentText("Create a modern restaurant website with full menu display, online reservation system, and photo gallery showcasing our dishes")}>
+                                    <span style={{ fontSize: '1.5rem', marginRight: '1rem' }}>🍽️</span>
+                                    <div>
+                                        <strong>Restaurant Website</strong>
+                                        <div style={{ fontSize: '0.875rem', opacity: 0.7, marginTop: '0.25rem' }}>Menu, reservations & gallery</div>
+                                    </div>
+                                </button>
+                                <button onClick={() => setIntentText("Build a stunning photography portfolio with an elegant gallery, about page, and contact form for booking sessions")}>
+                                    <span style={{ fontSize: '1.5rem', marginRight: '1rem' }}>📸</span>
+                                    <div>
+                                        <strong>Photography Portfolio</strong>
+                                        <div style={{ fontSize: '0.875rem', opacity: 0.7, marginTop: '0.25rem' }}>Showcase your work beautifully</div>
+                                    </div>
+                                </button>
+                                <button onClick={() => setIntentText("Design a professional real estate agency website with property listings, search filters, and agent profiles")}>
+                                    <span style={{ fontSize: '1.5rem', marginRight: '1rem' }}>🏠</span>
+                                    <div>
+                                        <strong>Real Estate Platform</strong>
+                                        <div style={{ fontSize: '0.875rem', opacity: 0.7, marginTop: '0.25rem' }}>Property listings & search</div>
+                                    </div>
+                                </button>
+                                <button onClick={() => setIntentText("Develop an e-commerce store for selling handmade products with shopping cart and checkout functionality")}>
+                                    <span style={{ fontSize: '1.5rem', marginRight: '1rem' }}>🛍️</span>
+                                    <div>
+                                        <strong>E-commerce Store</strong>
+                                        <div style={{ fontSize: '0.875rem', opacity: 0.7, marginTop: '0.25rem' }}>Sell products online</div>
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className={styles.questionsFooter}>
+                            <button
+                                className={styles.submitBtn}
+                                onClick={handleSubmitIntent}
+                                disabled={loading || !intentText.trim()}
+                            >
+                                {loading ? (
+                                    <>
+                                        <span className={styles.spinnerSmall}></span>
+                                        Processing your request...
+                                    </>
+                                ) : (
+                                    <>
+                                        Continue
+                                        <span style={{ marginLeft: '0.5rem' }}>→</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 {/* Questions Step */}
                 {step === 'questions' && (
                     <div className={styles.questionsContainer}>
@@ -387,42 +542,48 @@ export default function BuilderPage() {
 
                         <div className={styles.blueprintContent}>
                             <div className={styles.pagesList}>
-                                {blueprint.pages.map((page) => (
+                                {blueprint.pages?.map((page) => (
                                     <div key={page.id} className={styles.pageCard}>
                                         <div className={styles.pageHeader}>
                                             <h3>{page.title}</h3>
                                             <span className={styles.pageSlug}>{page.slug}</span>
                                         </div>
                                         <div className={styles.sectionsList}>
-                                            {page.sections.map((section) => (
+                                            {page.sections?.map((section) => (
                                                 <div key={section.id} className={styles.sectionItem}>
                                                     <span className={styles.sectionType}>{section.type}</span>
                                                     {section.title && <span className={styles.sectionTitle}>{section.title}</span>}
                                                     <span className={styles.componentCount}>
-                                                        {section.components.length} components
+                                                        {section.components?.length || 0} components
                                                     </span>
                                                 </div>
-                                            ))}
+                                            )) || []}
                                         </div>
                                     </div>
-                                ))}
+                                )) || []}
                             </div>
 
                             <div className={styles.themePreview}>
                                 <h3>Theme</h3>
-                                <div className={styles.colorSwatches}>
-                                    <div className={styles.swatch} style={{ background: blueprint.theme.primaryColor }}>
-                                        <span>Primary</span>
-                                    </div>
-                                    <div className={styles.swatch} style={{ background: blueprint.theme.secondaryColor }}>
-                                        <span>Secondary</span>
-                                    </div>
-                                    <div className={styles.swatch} style={{ background: blueprint.theme.accentColor }}>
-                                        <span>Accent</span>
-                                    </div>
-                                </div>
-                                <p className={styles.fontInfo}>Font: {blueprint.theme.fontFamily}</p>
-                                <p className={styles.styleInfo}>Style: {blueprint.theme.style}</p>
+                                {blueprint.theme ? (
+                                    <>
+                                        <div className={styles.colorSwatches}>
+                                            <div className={styles.swatch} style={{ background: blueprint.theme.primaryColor }}>
+                                                <span>Primary</span>
+                                            </div>
+                                            <div className={styles.swatch} style={{ background: blueprint.theme.secondaryColor }}>
+                                                <span>Secondary</span>
+                                            </div>
+                                            <div className={styles.swatch} style={{ background: blueprint.theme.accentColor }}>
+                                                <span>Accent</span>
+                                            </div>
+                                        </div>
+                                        <p className={styles.fontInfo}>Font: {blueprint.theme.fontFamily}</p>
+                                        <p className={styles.styleInfo}>Style: {blueprint.theme.style}</p>
+                                    </>
+                                ) : (
+                                    <p className={styles.fontInfo}>Theme loading...</p>
+                                )}
                             </div>
                         </div>
 
@@ -448,7 +609,7 @@ export default function BuilderPage() {
                 {/* Preview Step */}
                 {step === 'preview' && (
                     <div className={`${styles.previewContainer} ${viewMode === 'code' ? styles.codeMode : ''}`}>
-                        <div className={styles.previewPanel}>
+                        <div className={styles.previewPanel} style={{ width: `${previewWidth}%` }}>
                             <div className={styles.previewHeader}>
                                 <div className={styles.deviceButtons}>
                                     <button
@@ -506,131 +667,76 @@ export default function BuilderPage() {
                             )}
                         </div>
 
+                        {/* Resize Divider */}
                         {viewMode === 'preview' && (
-                            <div className={styles.chatPanel}>
-                                <div className={styles.tabs}>
-                                    <button
-                                        className={`${styles.tabBtn} ${activeTab === 'chat' ? styles.active : ''}`}
-                                        onClick={() => setActiveTab('chat')}
-                                    >
-                                        💬 AI CHAT
-                                    </button>
-                                    <button
-                                        className={`${styles.tabBtn} ${activeTab === 'theme' ? styles.active : ''}`}
-                                        onClick={() => setActiveTab('theme')}
-                                    >
-                                        🎨 THEME
-                                    </button>
-                                    <button
-                                        className={`${styles.tabBtn} ${activeTab === 'pages' ? styles.active : ''}`}
-                                        onClick={() => setActiveTab('pages')}
-                                    >
-                                        📄 PAGES
-                                    </button>
-                                    <button
-                                        className={`${styles.tabBtn} ${activeTab === 'assets' ? styles.active : ''}`}
-                                        onClick={() => setActiveTab('assets')}
-                                    >
-                                        🖼️ ASSETS
-                                    </button>
-                                    <button
-                                        className={`${styles.tabBtn} ${activeTab === 'code' ? styles.active : ''}`}
-                                        onClick={() => setActiveTab('code')}
-                                    >
-                                        💻 CODE
-                                    </button>
+                            <div
+                                className={styles.resizeDivider}
+                                onMouseDown={handleMouseDown}
+                                style={{ cursor: isResizing ? 'ew-resize' : 'col-resize' }}
+                            >
+                                <div className={styles.resizeHandle}></div>
+                            </div>
+                        )}
+
+                        {viewMode === 'preview' && (
+                            <div className={styles.chatPanel} style={{ width: `${100 - previewWidth}%` }}>
+                                <div className={styles.chatHeader}>
+                                    <h3>💬 AI Website Editor</h3>
                                 </div>
 
                                 <div className={styles.featurePanel}>
-                                    {activeTab === 'chat' && (
-                                        <div className={styles.chatMessages}>
-                                            {chatHistory.length === 0 ? (
-                                                <div className={styles.chatWelcome}>
-                                                    <div className={styles.chatWelcomeIcon}>💬✨</div>
-                                                    <h3>AI Website Editor</h3>
-                                                    <p className={styles.chatWelcomeDesc}>Chat naturally to make changes to your website. Only what you request will be modified - your entire site won't regenerate!</p>
-
-                                                    <div className={styles.chatExamplesLabel}>Try these examples:</div>
-                                                    <button onClick={() => setChatMessage("Change the heading to Welcome to My Business")} className={styles.exampleBtn}>
-                                                        <span className={styles.exampleIcon}>✏️</span>
-                                                        <span>Change main heading text</span>
-                                                    </button>
-                                                    <button onClick={() => setChatMessage("Add a contact form with email and message fields")} className={styles.exampleBtn}>
-                                                        <span className={styles.exampleIcon}>➕</span>
-                                                        <span>Add contact form section</span>
-                                                    </button>
-                                                    <button onClick={() => setChatMessage("Make the primary color blue")} className={styles.exampleBtn}>
-                                                        <span className={styles.exampleIcon}>🎨</span>
-                                                        <span>Change colors</span>
-                                                    </button>
-                                                    <button onClick={() => setChatMessage("Add a 3-column feature section")} className={styles.exampleBtn}>
-                                                        <span className={styles.exampleIcon}>📦</span>
-                                                        <span>Add features section</span>
-                                                    </button>
-                                                    <button onClick={() => setChatMessage("Make the font size bigger")} className={styles.exampleBtn}>
-                                                        <span className={styles.exampleIcon}>🔤</span>
-                                                        <span>Adjust typography</span>
-                                                    </button>
-                                                </div>
-                                            ) : (
-                                                <>
-                                                    {chatHistory.map((msg, i) => (
-                                                        <div key={i} className={`${styles.chatMessage} ${styles[msg.role]} ${styles.slideIn}`}>
-                                                            {msg.content}
+                                    <div className={styles.chatMessages}>
+                                        {chatHistory.length === 0 ? (
+                                            <div className={styles.chatWelcome}>
+                                                <p>✨ AI Website Editor</p>
+                                                <p>Tell me what you want to change - anything!</p>
+                                                <button onClick={() => setChatMessage("Add a hero section with a big heading and button")}>
+                                                    "Add hero section"
+                                                </button>
+                                                <button onClick={() => setChatMessage("Add 3 images in a gallery")}>
+                                                    "Add image gallery"
+                                                </button>
+                                                <button onClick={() => setChatMessage("Add a contact form with name, email and message fields")}>
+                                                    "Add contact form"
+                                                </button>
+                                                <button onClick={() => setChatMessage("Make it look more modern with gradients")}>
+                                                    "Make it modern"
+                                                </button>
+                                                <button onClick={() => setChatMessage("Add a features section with 3 cards")}>
+                                                    "Add features section"
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                {chatHistory.map((msg, i) => (
+                                                    <div key={i} className={`${styles.chatMessage} ${styles[msg.role]} ${styles.slideIn}`}>
+                                                        {msg.content}
+                                                    </div>
+                                                ))}
+                                                {isTyping && (
+                                                    <div className={`${styles.chatMessage} ${styles.ai} ${styles.slideIn}`}>
+                                                        <div className={styles.typingIndicator}>
+                                                            <span></span>
+                                                            <span></span>
+                                                            <span></span>
                                                         </div>
-                                                    ))}
-                                                    {isTyping && (
-                                                        <div className={`${styles.chatMessage} ${styles.ai} ${styles.slideIn}`}>
-                                                            <div className={styles.typingIndicator}>
-                                                                <span></span>
-                                                                <span></span>
-                                                                <span></span>
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </>
-                                            )}
-                                        </div>
-                                    )}
+                                                    </div>
+                                                )}
+                                            </>
+                                        )}
+                                    </div>
 
-                                    {activeTab === 'theme' && (
-                                        <ThemePanel
-                                            sessionId={sessionId}
-                                            onThemeUpdate={() => {
-                                                // Reload preview when theme changes
-                                                if (previewUrl) {
-                                                    const timestamp = new Date().getTime();
-                                                    setPreviewUrl(`${previewUrl.split('?')[0]}?t=${timestamp}`);
-                                                }
-                                            }}
-                                        />
-                                    )}
-
-                                    {activeTab === 'pages' && (
-                                        <PageManager sessionId={sessionId} onPagesUpdate={handlePagesUpdate} />
-                                    )}
-
-                                    {activeTab === 'assets' && (
-                                        <AssetManager sessionId={sessionId} />
-                                    )}
-
-                                    {activeTab === 'code' && (
-                                        <MonacoCodeViewer sessionId={sessionId} />
-                                    )}
-                                </div>
-
-                                {activeTab === 'chat' && (
                                     <div className={styles.chatInput}>
                                         <input
                                             type="text"
-                                            placeholder="Say what to change... add section, change color, edit text, anything!"
+                                            placeholder="Say anything - add sections, insert images, change layout..."
                                             value={chatMessage}
                                             onChange={(e) => setChatMessage(e.target.value)}
                                             onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
                                         />
                                         <button onClick={handleSendMessage}>Send</button>
                                     </div>
-                                )}
+                                </div>
                             </div>
                         )}
                     </div>

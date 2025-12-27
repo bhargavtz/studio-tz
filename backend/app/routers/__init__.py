@@ -2,10 +2,10 @@
 NCD INAI - Routers Package
 """
 
-from app.routers import session, intent, questions, blueprint, generate, edit, deploy, theme, assets
+from app.routers import session_database, intent, questions, blueprint, generate, edit, deploy, theme, assets, dashboard
 
 __all__ = [
-    "session",
+    "session_database",
     "intent",
     "questions",
     "blueprint",
@@ -13,5 +13,6 @@ __all__ = [
     "edit",
     "deploy",
     "theme",
-    "assets"
+    "assets",
+    "dashboard"
 ]

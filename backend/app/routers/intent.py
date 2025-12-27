@@ -1,12 +1,15 @@
 """
-NCD INAI - Intent Router
+NCD INAI - Intent Router (Database Version)
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
+import uuid
 
-from app.services.session_manager import session_manager
-from app.models.session import SessionStatus, DomainClassification
+from app.database.connection import get_db
+from app.database import crud
+from app.models.session import DomainClassification
 from app.agents.domain_identifier import domain_identifier
 
 router = APIRouter()
@@ -25,37 +28,36 @@ class IntentResponse(BaseModel):
 
 
 @router.post("/intent", response_model=IntentResponse)
-async def process_intent(request: IntentRequest):
+async def process_intent(
+    request: IntentRequest,
+    db: AsyncSession = Depends(get_db)
+):
     """Process user's initial intent and identify domain."""
-    session = session_manager.get_session(request.session_id)
+    try:
+        session_uuid = uuid.UUID(request.session_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid session ID")
+    
+    session = await crud.get_session(db, session_uuid)
     
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     
     # Store intent
     session.intent = request.intent_text
-    session.status = SessionStatus.INTENT_COLLECTED
+    session.status = "intent_collected"
     
     # Identify domain
     domain = await domain_identifier.identify(request.intent_text)
-    session.domain = domain
-    session.status = SessionStatus.DOMAIN_IDENTIFIED
+    session.domain = domain.model_dump()
+    session.status = "domain_identified"
     
-    # Save vision.json
-    session_manager.save_json_file(
-        request.session_id,
-        "vision.json",
-        {
-            "intent": request.intent_text,
-            "domain": domain.model_dump()
-        }
-    )
-    
-    session_manager.update_session(session)
+    await db.commit()
+    await db.refresh(session)
     
     return IntentResponse(
-        session_id=session.id,
-        status=session.status.value,
+        session_id=str(session.id),
+        status=session.status,
         domain=domain,
         message=f"Identified as a {domain.domain.replace('_', ' ')} website. Generating questions..."
     )
