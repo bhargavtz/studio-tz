@@ -7,7 +7,8 @@
 **Temperature**: 0.2 (Lower for precise code edits)  
 **Max Tokens**: 6000
 
-### Configuration Location:
+### Configuration Location
+
 - **Config File**: `backend/app/config.py`
 - **Line 28**: `self.llm_model = os.getenv("LLM_MODEL", "moonshotai/kimi-k2-instruct-0905")`
 - **Editor File**: `backend/app/services/advanced_groq_editor.py`
@@ -19,7 +20,7 @@
 
 The chat panel now performs **SURGICAL/TARGETED updates** instead of full code rewrites.
 
-### How It Works:
+### How It Works
 
 1. **Planning Phase**: AI analyzes the user request and classifies it:
    - `ADD_SECTION` - Adding new sections (hero, features, gallery, etc.)
@@ -35,7 +36,7 @@ The chat panel now performs **SURGICAL/TARGETED updates** instead of full code r
    - **STYLE_CHANGE**: Modifies CSS without touching HTML
    - **COMPLEX**: Full HTML update (last resort)
 
-### Benefits:
+### Benefits
 
 ✅ **Preserves Existing Code**: Only modifies what's requested  
 ✅ **Faster Updates**: Less code generation needed  
@@ -47,14 +48,17 @@ The chat panel now performs **SURGICAL/TARGETED updates** instead of full code r
 
 ## 📍 **Code Locations**
 
-### Chat Endpoint:
+### Chat Endpoint
+
 **File**: `backend/app/routers/edit.py`  
 **Endpoint**: `POST /edit/{session_id}/chat`  
 **Lines**: 293-369
 
-### Editor Service:
+### Editor Service
+
 **File**: `backend/app/services/advanced_groq_editor.py`  
 **Methods**:
+
 - `modify_website()` - Main entry point (line 25)
 - `_plan_modification()` - Analyzes request (line 103)
 - `_add_section()` - Adds new sections (line 142)
@@ -77,17 +81,20 @@ LLM_MODEL=moonshotai/kimi-k2-instruct-0905
 
 ## 🎨 **Example Usage**
 
-### User Request: "Add a hero section"
+### User Request - Add a hero section
+
 **Classification**: `ADD_SECTION`  
 **Action**: Generates only `<section class="hero">...</section>`  
 **Result**: New section added before footer, existing code unchanged
 
-### User Request: "Change the heading to Welcome"
+### User Request - Change the heading to Welcome
+
 **Classification**: `UPDATE_CONTENT`  
 **Action**: Finds `<h1>` and updates text only  
 **Result**: Only `<h1>` text changes, rest stays same
 
-### User Request: "Make it look modern with gradients"
+### User Request - Make it look modern with gradients
+
 **Classification**: `STYLE_CHANGE`  
 **Action**: Updates CSS styles only  
 **Result**: Styles modified, HTML structure intact
@@ -97,6 +104,7 @@ LLM_MODEL=moonshotai/kimi-k2-instruct-0905
 ## ✨ **Summary**
 
 Your agentic chat panel is now powered by:
+
 - **Kimi K2 Instruct Model** (via Groq) for intelligent code understanding
 - **Targeted/Surgical Update System** for precise modifications
 - **Smart Classification** to determine the minimum necessary changes
