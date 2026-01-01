@@ -4,6 +4,7 @@ NCD INAI - Question Generator Agent
 Generates domain-specific questions for gathering requirements.
 """
 
+import logging
 from typing import List, Dict, Any
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
@@ -11,6 +12,8 @@ from langchain_core.output_parsers import JsonOutputParser
 
 from app.config import settings
 from app.models.session import DomainClassification
+
+logger = logging.getLogger(__name__)
 
 
 QUESTION_GENERATOR_PROMPT = """You are a FRIENDLY BUSINESS HELPER.
@@ -120,7 +123,7 @@ class QuestionGeneratorAgent:
             })
             return result.get("questions", [])
         except Exception as e:
-            print(f"Question generation error: {e}")
+            logger.exception(f"Question generation error: {e}")
             # Fallback questions
             return self._get_fallback_questions(domain.domain)
     

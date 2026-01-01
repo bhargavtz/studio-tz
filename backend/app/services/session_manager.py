@@ -1,15 +1,21 @@
 """
-NCD INAI - Session Manager Service
+NCD INAI - Session Manager
+
+Manages website generation sessions with in-memory storage.
+Fallback when database is not available.
 """
 
+import logging
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict
+from typing import Dict, Optional
 import uuid
 
 from app.config import settings
 from app.models.session import Session, SessionStatus
+
+logger = logging.getLogger(__name__)
 
 
 class SessionManager:
@@ -34,7 +40,7 @@ class SessionManager:
                             data = json.load(f)
                             self._sessions[session_id] = Session(**data)
                     except Exception as e:
-                        print(f"Failed to load session {session_id}: {e}")
+                        logger.warning(f"Failed to load session {session_id}: {e}")
     
     def create_session(self) -> Session:
         """Create a new session."""

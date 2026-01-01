@@ -2,6 +2,7 @@
 NCD INAI - Edit Router (Surgical Edit System)
 """
 
+import logging
 from typing import Optional, Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -16,12 +17,12 @@ from app.models.session import SessionStatus
 from app.agents.editor import editor_planner
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 class StructuredEditRequest(BaseModel):
     """Structured edit request with NCD ID."""
     ncd_id: str
-    instruction: str
     instruction: str
     current_value: Optional[str] = None
 
@@ -42,9 +43,6 @@ class EditResponse(BaseModel):
     action: str
     changes_description: str
     preview_url: str
-    version: int
-
-
     version: int
 
 
@@ -376,11 +374,13 @@ async def chat_edit(session_id: str, request: ChatEditRequest):
     try:
         from app.services.surgical_groq_editor import surgical_editor
         
-        # Get current files
         html_content = file_manager.read_file(session_id, "index.html") or ""
         css_content = file_manager.read_file(session_id, "styles.css") or ""
         
-        print(f"User request: {request.message}")
+        logger.info("Processing chat edit request", extra={
+            "session_id": session_id,
+            "message": request.message
+        })
         
         # Use Surgical AI to modify ONLY what user requests
         result = await surgical_editor.modify_website(
@@ -427,9 +427,10 @@ async def chat_edit(session_id: str, request: ChatEditRequest):
         )
         
     except Exception as e:
-        print(f"Chat edit error: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception("Chat edit failed", extra={
+            "session_id": session_id,
+            "error": str(e)
+        })
         return ChatEditResponse(
             success=False,
             changes=[],

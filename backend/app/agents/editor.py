@@ -4,12 +4,15 @@ NCD INAI - Editor Agent (Planner Only)
 LLM decides WHAT to edit, backend executes HOW.
 """
 
+import logging
 from typing import Dict, Any, Optional
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 EDITOR_PLANNER_PROMPT = """You are an expert web design consultant.
@@ -108,7 +111,7 @@ class EditorPlannerAgent:
             })
             return result
         except Exception as e:
-            print(f"Edit planning error: {e}")
+            logger.warning(f"Edit planning error: {e}")
             # Fallback: simple text update
             return {
                 "action": "UPDATE_TEXT",

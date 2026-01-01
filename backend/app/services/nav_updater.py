@@ -4,10 +4,13 @@ NCD INAI - Navigation Updater Service
 Updates navigation links across all HTML pages in a session.
 """
 
+import logging
 from typing import List, Dict, Any
 from pathlib import Path
 from bs4 import BeautifulSoup
 import re
+
+logger = logging.getLogger(__name__)
 
 
 class NavigationUpdater:
@@ -58,7 +61,7 @@ class NavigationUpdater:
                         updated_count += 1
             
             except Exception as e:
-                print(f"Error updating {html_file.name}: {e}")
+                logger.warning(f"Error updating {html_file.name}: {e}")
                 continue
         
         return updated_count
@@ -166,7 +169,7 @@ class NavigationUpdater:
                     updated_count += 1
             
             except Exception as e:
-                print(f"Error removing link from {html_file.name}: {e}")
+                logger.warning(f"Error removing link from {html_file.name}: {e}")
                 continue
         
         return updated_count

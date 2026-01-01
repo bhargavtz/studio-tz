@@ -3,12 +3,15 @@ Groq AI-Powered Chat Editor
 Fast natural language understanding for website editing using Groq
 """
 
+import logging
 import os
 import re
 import json
 from typing import Dict, Any, Optional
 from langchain_groq import ChatGroq
 from bs4 import BeautifulSoup
+
+logger = logging.getLogger(__name__)
 
 class GroqChatEditor:
     def __init__(self):
@@ -88,14 +91,14 @@ Return ONLY the JSON object, nothing else."""
             if all(field in result for field in required_fields):
                 return result
             else:
-                print(f"Invalid response structure: {result}")
+                logger.warning(f"Invalid response structure: {result}")
                 return self._fallback_understanding(user_message)
                 
         except json.JSONDecodeError as e:
-            print(f"JSON parse error: {e}, Response: {result_text}")
+            logger.error(f"JSON parse error: {e}, Response: {result_text}")
             return self._fallback_understanding(user_message)
         except Exception as e:
-            print(f"Groq error: {e}")
+            logger.exception(f"Groq error: {e}")
             return self._fallback_understanding(user_message)
     
     def _extract_elements_info(self, soup: BeautifulSoup) -> str:

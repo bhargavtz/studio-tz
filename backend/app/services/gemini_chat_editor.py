@@ -3,11 +3,14 @@ Gemini AI-Powered Chat Editor
 Natural language understanding for website editing
 """
 
+import logging
 import os
 import re
 from typing import Dict, Any, Optional
 import google.generativeai as genai
 from bs4 import BeautifulSoup
+
+logger = logging.getLogger(__name__)
 
 class GeminiChatEditor:
     def __init__(self):
@@ -74,7 +77,7 @@ Return ONLY the JSON, no other text."""
             
             return result
         except Exception as e:
-            print(f"Gemini error: {e}")
+            logger.exception(f"Gemini error: {e}")
             return self._fallback_understanding(user_message)
     
     def _extract_elements_info(self, soup: BeautifulSoup) -> str:

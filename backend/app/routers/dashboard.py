@@ -3,6 +3,7 @@ NCD INAI - Dashboard Router
 API endpoints for user dashboard with project management
 """
 
+import logging
 from fastapi import APIRouter, HTTPException, Depends, Header, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,6 +19,7 @@ from app.config import settings
 
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 # ==================== DATABASE CHECK ====================
@@ -370,8 +372,7 @@ async def delete_project(
         from app.services.storage_service import storage_service
         await storage_service.delete_session_files(db, session_uuid)
     except Exception as e:
-        # Log but continue - database cleanup is more important
-        print(f"Warning: Failed to delete R2 files: {e}")
+        logger.warning(f"Failed to delete R2 files for session {session_uuid}: {e}")
     
     # Delete session (cascades to files, messages, etc.)
     await db.delete(session)

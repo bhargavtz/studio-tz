@@ -6,13 +6,16 @@ Generates HTML, CSS, and JavaScript from blueprints.
 
 import json
 import hashlib
+import logging
 from functools import lru_cache
-from typing import Dict, Any
+from typing import Dict, Any, List
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 CODE_GENERATOR_PROMPT = """You are a **LEGENDARY ART DIRECTOR & PRINCIPAL FRONTEND ARCHITECT**.
@@ -142,9 +145,8 @@ class CodeGeneratorAgent:
             # Post-process: Inject NCD attributes
             return self._inject_ncd_attributes(result, blueprint)
         except Exception as e:
-            print(f"Code generation error: {e}")
-            fallback = self._generate_fallback_code(blueprint)
-            return self._inject_ncd_attributes(fallback, blueprint)
+            logger.exception(f"Code generation error: {e}")
+            return {"error": str(e)}
 
     async def generate_page(self, blueprint: Dict[str, Any], page_id: str, base_css: str, base_js: str) -> str:
         """Generate HTML for a specific page using existing CSS/JS context."""
@@ -177,8 +179,8 @@ class CodeGeneratorAgent:
             processed = self._inject_ncd_attributes({"html": html}, blueprint)
             return processed.get("html", "")
         except Exception as e:
-            print(f"Page generation error ({page_id}): {e}")
-            return ""
+            logger.exception(f"Page generation error ({page_id}): {e}")
+            return {"error": str(e)}
     
     def _inject_ncd_attributes(self, code: Dict[str, str], blueprint: Dict[str, Any]) -> Dict[str, str]:
         """Inject data-ncd-* attributes into HTML and create scoped CSS."""

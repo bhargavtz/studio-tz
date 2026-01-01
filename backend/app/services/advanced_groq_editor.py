@@ -3,6 +3,7 @@ Advanced Website Editor with Targeted Updates
 Uses Kimi model for intelligent, surgical code modifications.
 """
 
+import logging
 import os
 import json
 import re
@@ -11,6 +12,8 @@ from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from bs4 import BeautifulSoup
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 class AdvancedGroqEditor:
     def __init__(self):
@@ -74,7 +77,7 @@ class AdvancedGroqEditor:
             }
             
         except Exception as e:
-            print(f"Modification error: {e}")
+            logger.exception("Website modification failed", extra={"error": str(e)})
             return {
                 "success": False,
                 "message": f"Error: {str(e)}",
@@ -118,7 +121,7 @@ Return ONLY valid JSON, no markdown."""
             plan["success"] = True
             return plan
         except Exception as e:
-            print(f"Planning error: {e}")
+            logger.warning(f"Planning error: {e}")
             return {"success": False, "type": "COMPLEX"}
     
     async def _add_section(self, soup: BeautifulSoup, request: str, plan: Dict) -> BeautifulSoup:
@@ -229,8 +232,11 @@ Return ONLY JSON."""
                     if old_text in elem.get_text():
                         elem.string = new_text
                         break
-        except:
-            pass
+        except (json.JSONDecodeError, KeyError, ValueError) as e:
+            # Log parsing errors but continue with original soup
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Failed to parse content update changes: {e}")
         
         return soup
     

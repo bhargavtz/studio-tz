@@ -4,12 +4,15 @@ NCD INAI - Page Creator Agent
 Dynamically creates new website pages based on user chat requests.
 """
 
+import logging
 from typing import Dict, Any, Optional
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 PAGE_CREATOR_PROMPT = """You are a PROFESSIONAL WEB PAGE GENERATOR.
@@ -125,7 +128,7 @@ class PageCreatorAgent:
             
             return result
         except Exception as e:
-            print(f"Page creation error: {e}")
+            logger.exception(f"Page creation error: {e}")
             # Fallback: create basic page
             return self._create_fallback_page(user_request, theme)
     

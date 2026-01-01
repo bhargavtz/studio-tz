@@ -4,6 +4,7 @@ NCD INAI - Chat Router
 Handles chat-based interactions for dynamic page creation and editing.
 """
 
+import logging
 from typing import Dict, Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -14,6 +15,7 @@ from app.agents.page_creator import page_creator
 from app.services.nav_updater import nav_updater
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 class ChatMessage(BaseModel):
@@ -129,7 +131,11 @@ async def _handle_page_creation(
         )
     
     except Exception as e:
-        print(f"Page creation error: {e}")
+        logger.exception("Page creation failed", extra={
+            "session_id": session_id,
+            "message": message,
+            "error": str(e)
+        })
         raise HTTPException(
             status_code=500,
             detail=f"Page creation failed: {str(e)}"

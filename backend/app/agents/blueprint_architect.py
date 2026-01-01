@@ -4,6 +4,7 @@ NCD INAI - Blueprint Architect Agent
 Creates structured website blueprints from user answers.
 """
 
+import logging
 from typing import Dict, Any
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
@@ -11,6 +12,8 @@ from langchain_core.output_parsers import JsonOutputParser
 
 from app.config import settings
 from app.models.session import DomainClassification
+
+logger = logging.getLogger(__name__)
 
 
 BLUEPRINT_ARCHITECT_PROMPT = """You are a WORLD-RENOWNED WEBSITE ARCHITECT & UX VISIONARY.
@@ -131,7 +134,7 @@ class BlueprintArchitectAgent:
             })
             return result
         except Exception as e:
-            print(f"Blueprint generation error: {e}")
+            logger.warning(f"Blueprint generation error: {e}")
             return self._get_fallback_blueprint(domain, answers)
     
     def _format_answers(self, answers: Dict[str, Any]) -> str:

@@ -3,12 +3,15 @@ Surgical Groq AI Website Editor
 Makes TARGETED, PRECISE edits - only changes what user requests!
 """
 
+import logging
 import os
 import json
 import re
 from typing import Dict, Any
 from langchain_groq import ChatGroq
 from bs4 import BeautifulSoup
+
+logger = logging.getLogger(__name__)
 
 class SurgicalGroqEditor:
     def __init__(self):
@@ -80,7 +83,7 @@ Return ONLY JSON, no explanation."""
             analysis_text = re.sub(r'```json\s*|\s*```', '', analysis_text).strip()
             analysis = json.loads(analysis_text)
             
-            print(f"🔍 AI Analysis: {analysis}")
+            logger.debug("AI analysis result", extra={"analysis": analysis})
             
             # Step 2: Apply the SURGICAL edit
             edit_type = analysis.get("edit_type")
@@ -131,9 +134,7 @@ Return ONLY JSON, no explanation."""
                 }
                 
         except Exception as e:
-            print(f"Surgical edit error: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.exception("Surgical edit failed", extra={"error": str(e)})
             return {
                 "success": False,
                 "message": f"Error: {str(e)}",

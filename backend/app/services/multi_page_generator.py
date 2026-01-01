@@ -4,9 +4,12 @@ NCD INAI - Multi-Page Website Generator
 Generates multiple HTML pages from blueprint.
 """
 
+import logging
 from typing import Dict, Any, List
 from pathlib import Path
 from bs4 import BeautifulSoup
+
+logger = logging.getLogger(__name__)
 
 
 class MultiPageGenerator:
@@ -41,7 +44,7 @@ class MultiPageGenerator:
             else:
                 filename = f"{page_slug.strip('/').replace('/', '-')}.html"
                 # Generate new page content using AI
-                print(f"✨ Generating high-quality page: {filename}")
+                logger.info(f"Generating high-quality page: {filename}")
                 page_html = await code_generator.generate_page(
                     blueprint=blueprint,
                     page_id=page_id,

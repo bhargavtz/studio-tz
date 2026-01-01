@@ -2,6 +2,7 @@
 NCD INAI - Questions Router (Database Version)
 """
 
+import logging
 from typing import List, Dict, Any
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
@@ -13,6 +14,7 @@ from app.database import crud
 from app.agents.question_generator import question_generator
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 
@@ -42,8 +44,7 @@ class AnswersRequest(BaseModel):
             # We'll be lenient and let AI work with partial data
             if answer is None or answer == '' or (isinstance(answer, list) and len(answer) == 0):
                 if required:
-                    # Log warning but don't block
-                    print(f"Warning: Required question {q_id} was not answered")
+                    logger.warning(f"Required question {q_id} was not answered")
                 continue
             
             # Type validation and sanitization
@@ -58,18 +59,16 @@ class AnswersRequest(BaseModel):
                     raise ValueError(f"Question {q_id} must be a string")
                 options = question.get('options', [])
                 if options and answer not in options:
-                    # Be lenient - accept the value anyway
-                    print(f"Warning: Question {q_id} has unexpected option: {answer}")
+                    logger.warning(f"Question {q_id} has unexpected option: {answer}")
                 validated[q_id] = answer
                 
             elif q_type == 'multiselect':
                 if not isinstance(answer, list):
                     raise ValueError(f"Question {q_id} must be a list")
-                options = question.get('options', [])
                 if options:
                     for item in answer:
                         if item not in options:
-                            print(f"Warning: Question {q_id} has unexpected option: {item}")
+                            logger.warning(f"Question {q_id} has unexpected option: {item}")
                 validated[q_id] = answer
                 
             elif q_type == 'yesno':

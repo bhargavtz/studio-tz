@@ -4,6 +4,7 @@ NCD INAI - Domain Identifier Agent
 Identifies the business domain from user's intent description.
 """
 
+import logging
 from typing import Optional
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
@@ -11,6 +12,8 @@ from langchain_core.output_parsers import JsonOutputParser
 
 from app.config import settings
 from app.models.session import DomainClassification
+
+logger = logging.getLogger(__name__)
 
 
 DOMAIN_IDENTIFIER_PROMPT = """You are an expert business analyst. 
@@ -83,7 +86,7 @@ class DomainIdentifierAgent:
             result = await self._get_chain().ainvoke({"intent": intent})
             return DomainClassification(**result)
         except Exception as e:
-            print(f"Domain identification error: {e}")
+            logger.warning(f"Domain identification error: {e}")
             # Fallback classification
             return DomainClassification(
                 domain="general_business",

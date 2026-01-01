@@ -3,9 +3,12 @@ NCD INAI - Database Connection Management
 """
 
 from typing import AsyncGenerator, Optional
+import logging
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker, AsyncEngine
 from sqlalchemy.orm import declarative_base
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 # Base class for models
 Base = declarative_base()
@@ -52,13 +55,13 @@ def init_engine():
     global engine, AsyncSessionLocal
     
     if not settings.use_database or not settings.database_url:
-        print("⚠️ Database not configured (USE_DATABASE=false or DATABASE_URL empty)")
+        logger.warning("Database not configured (USE_DATABASE=false or DATABASE_URL empty)")
         return
     
     async_url = get_async_database_url()
     
     if not async_url:
-        print("⚠️ Invalid database URL")
+        logger.warning("Invalid database URL")
         return
     
     # Create async engine
@@ -79,7 +82,7 @@ def init_engine():
         autoflush=False,
     )
     
-    print(f"✅ Database engine initialized")
+    logger.info("Database engine initialized")
 
 
 # Initialize on module load (only if database is configured)
@@ -119,7 +122,7 @@ async def init_db():
     In production, use migrations (Alembic).
     """
     if not engine:
-        print("⚠️ Cannot init_db: engine not configured")
+        logger.warning("Cannot init_db: engine not configured")
         return
     
     # Import models first to register them with Base
