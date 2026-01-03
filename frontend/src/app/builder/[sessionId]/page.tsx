@@ -297,6 +297,20 @@ export default function BuilderPage() {
         }
     };
 
+    const handleThemeChange = (field: string, value: string) => {
+        if (!blueprint) return;
+        setBlueprint(prev => {
+            if (!prev) return null;
+            return {
+                ...prev,
+                theme: {
+                    ...prev.theme!,
+                    [field]: value
+                }
+            };
+        });
+    };
+
     const handlePagesUpdate = () => {
         // Reload preview when pages are updated
         if (previewUrl) {
@@ -632,26 +646,8 @@ export default function BuilderPage() {
                         </div>
 
                         <div className={styles.blueprintContent}>
-                            <div className={styles.pagesList}>
-                                {blueprint.pages?.map((page) => (
-                                    <div key={page.id} className={styles.pageCard}>
-                                        <div className={styles.pageHeader}>
-                                            <h3>{page.title}</h3>
-                                            <span className={styles.pageSlug}>{page.slug}</span>
-                                        </div>
-                                        <div className={styles.sectionsList}>
-                                            {page.sections?.map((section) => (
-                                                <div key={section.id} className={styles.sectionItem}>
-                                                    <span className={styles.sectionType}>{section.type}</span>
-                                                    {section.title && <span className={styles.sectionTitle}>{section.title}</span>}
-                                                    <span className={styles.componentCount}>
-                                                        {section.components?.length || 0} components
-                                                    </span>
-                                                </div>
-                                            )) || []}
-                                        </div>
-                                    </div>
-                                )) || []}
+                            <div className={styles.jsonView}>
+                                <pre>{JSON.stringify(blueprint, null, 2)}</pre>
                             </div>
 
                             <div className={styles.themePreview}>
@@ -660,12 +656,33 @@ export default function BuilderPage() {
                                     <>
                                         <div className={styles.colorSwatches}>
                                             <div className={styles.swatch} style={{ background: blueprint.theme.primaryColor }}>
+                                                <input
+                                                    type="color"
+                                                    value={blueprint.theme.primaryColor}
+                                                    onChange={(e) => handleThemeChange('primaryColor', e.target.value)}
+                                                    className={styles.colorInput}
+                                                    title="Change Primary Color"
+                                                />
                                                 <span>Primary</span>
                                             </div>
                                             <div className={styles.swatch} style={{ background: blueprint.theme.secondaryColor }}>
+                                                <input
+                                                    type="color"
+                                                    value={blueprint.theme.secondaryColor}
+                                                    onChange={(e) => handleThemeChange('secondaryColor', e.target.value)}
+                                                    className={styles.colorInput}
+                                                    title="Change Secondary Color"
+                                                />
                                                 <span>Secondary</span>
                                             </div>
                                             <div className={styles.swatch} style={{ background: blueprint.theme.accentColor }}>
+                                                <input
+                                                    type="color"
+                                                    value={blueprint.theme.accentColor}
+                                                    onChange={(e) => handleThemeChange('accentColor', e.target.value)}
+                                                    className={styles.colorInput}
+                                                    title="Change Accent Color"
+                                                />
                                                 <span>Accent</span>
                                             </div>
                                         </div>

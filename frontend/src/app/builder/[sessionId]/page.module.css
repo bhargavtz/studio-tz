@@ -1381,3 +1381,39 @@
 .checkIcon {
     color: var(--primary);
 }
+
+/* JSON View */
+.jsonView {
+    background: rgba(0, 0, 0, 0.4);
+    padding: 1.5rem;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-color);
+    overflow: auto;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: #e6edf3;
+    max-height: 600px;
+    white-space: pre-wrap;
+    -webkit-backdrop-filter: blur(5px);
+    backdrop-filter: blur(5px);
+}
+
+/* Color Input */
+.colorInput {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+    border: none;
+    padding: 0;
+}
+
+.swatch {
+    position: relative;
+    /* Ensure absolute input works */
+    overflow: hidden;
+}
