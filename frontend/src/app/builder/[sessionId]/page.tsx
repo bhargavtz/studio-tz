@@ -1,5 +1,7 @@
 'use client';
 
+import { ChevronLeft, ChevronRight, Check, ChevronDown } from 'lucide-react';
+
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import dynamicImport from 'next/dynamic';
@@ -24,6 +26,9 @@ export default function BuilderPage() {
     const [step, setStep] = useState<BuilderStep>('intent');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+
 
     // Session data
     const [session, setSession] = useState<api.Session | null>(null);
@@ -33,6 +38,12 @@ export default function BuilderPage() {
     const [blueprint, setBlueprint] = useState<api.Blueprint | null>(null);
     const [previewUrl, setPreviewUrl] = useState('');
     const [generating, setGenerating] = useState(false);
+    const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+
+    // Reset dropdown when changing questions
+    useEffect(() => {
+        setIsDropdownOpen(false);
+    }, [currentQuestionIndex]);
 
     const [chatMessage, setChatMessage] = useState('');
     const [chatHistory, setChatHistory] = useState<Array<{ role: 'user' | 'ai'; content: string }>>([]);
@@ -151,6 +162,29 @@ export default function BuilderPage() {
         setAnswers(prev => ({ ...prev, [questionId]: value }));
     };
 
+    const handleNextQuestion = () => {
+        if (currentQuestionIndex < questions.length - 1) {
+            setCurrentQuestionIndex(prev => prev + 1);
+        } else {
+            handleSubmitAnswers();
+        }
+    };
+
+    const handlePreviousQuestion = () => {
+        if (currentQuestionIndex > 0) {
+            setCurrentQuestionIndex(prev => prev - 1);
+        }
+    };
+
+    const isCurrentQuestionAnswered = () => {
+        const q = questions[currentQuestionIndex];
+        if (!q) return false;
+        if (!q.required) return true;
+        const answer = answers[q.id];
+        if (answer === undefined || answer === '' || (Array.isArray(answer) && answer.length === 0)) return false;
+        return true;
+    };
+
     const handleSubmitIntent = async () => {
         if (!intentText.trim()) return;
 
@@ -161,6 +195,7 @@ export default function BuilderPage() {
             // Get questions
             const questionsData = await api.getQuestions(sessionId);
             setQuestions(questionsData.questions);
+            setCurrentQuestionIndex(0);
             setStep('questions');
         } catch (err) {
             console.error('Failed to process intent:', err);
@@ -366,34 +401,36 @@ export default function BuilderPage() {
 
                             <div className={styles.examplePrompts}>
                                 <p>✨ Quick Start Templates</p>
-                                <button onClick={() => setIntentText("Create a modern restaurant website with full menu display, online reservation system, and photo gallery showcasing our dishes")}>
-                                    <span style={{ fontSize: '1.5rem', marginRight: '1rem' }}>🍽️</span>
-                                    <div>
-                                        <strong>Restaurant Website</strong>
-                                        <div style={{ fontSize: '0.875rem', opacity: 0.7, marginTop: '0.25rem' }}>Menu, reservations & gallery</div>
-                                    </div>
-                                </button>
-                                <button onClick={() => setIntentText("Build a stunning photography portfolio with an elegant gallery, about page, and contact form for booking sessions")}>
-                                    <span style={{ fontSize: '1.5rem', marginRight: '1rem' }}>📸</span>
-                                    <div>
-                                        <strong>Photography Portfolio</strong>
-                                        <div style={{ fontSize: '0.875rem', opacity: 0.7, marginTop: '0.25rem' }}>Showcase your work beautifully</div>
-                                    </div>
-                                </button>
-                                <button onClick={() => setIntentText("Design a professional real estate agency website with property listings, search filters, and agent profiles")}>
-                                    <span style={{ fontSize: '1.5rem', marginRight: '1rem' }}>🏠</span>
-                                    <div>
-                                        <strong>Real Estate Platform</strong>
-                                        <div style={{ fontSize: '0.875rem', opacity: 0.7, marginTop: '0.25rem' }}>Property listings & search</div>
-                                    </div>
-                                </button>
-                                <button onClick={() => setIntentText("Develop an e-commerce store for selling handmade products with shopping cart and checkout functionality")}>
-                                    <span style={{ fontSize: '1.5rem', marginRight: '1rem' }}>🛍️</span>
-                                    <div>
-                                        <strong>E-commerce Store</strong>
-                                        <div style={{ fontSize: '0.875rem', opacity: 0.7, marginTop: '0.25rem' }}>Sell products online</div>
-                                    </div>
-                                </button>
+                                <div className={styles.exampleGrid}>
+                                    <button onClick={() => setIntentText("Create a modern restaurant website with full menu display, online reservation system, and photo gallery showcasing our dishes")}>
+                                        <span className={styles.exampleIcon}>🍽️</span>
+                                        <div>
+                                            <strong>Restaurant Website</strong>
+                                            <div className={styles.mnTextSecondary}>Menu, reservations & gallery</div>
+                                        </div>
+                                    </button>
+                                    <button onClick={() => setIntentText("Build a stunning photography portfolio with an elegant gallery, about page, and contact form for booking sessions")}>
+                                        <span className={styles.exampleIcon}>📸</span>
+                                        <div>
+                                            <strong>Photography Portfolio</strong>
+                                            <div className={styles.mnTextSecondary}>Showcase your work beautifully</div>
+                                        </div>
+                                    </button>
+                                    <button onClick={() => setIntentText("Design a professional real estate agency website with property listings, search filters, and agent profiles")}>
+                                        <span className={styles.exampleIcon}>🏠</span>
+                                        <div>
+                                            <strong>Real Estate Platform</strong>
+                                            <div className={styles.mnTextSecondary}>Property listings & search</div>
+                                        </div>
+                                    </button>
+                                    <button onClick={() => setIntentText("Develop an e-commerce store for selling handmade products with shopping cart and checkout functionality")}>
+                                        <span className={styles.exampleIcon}>🛍️</span>
+                                        <div>
+                                            <strong>E-commerce Store</strong>
+                                            <div className={styles.mnTextSecondary}>Sell products online</div>
+                                        </div>
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
@@ -420,104 +457,154 @@ export default function BuilderPage() {
                 )}
 
                 {/* Questions Step */}
-                {step === 'questions' && (
+                {step === 'questions' && questions.length > 0 && (
                     <div className={styles.questionsContainer}>
                         <div className={styles.questionsHeader}>
-                            <h1>Tell us about your business</h1>
-                            <p>Answer these questions so we can create the perfect website for you.</p>
-                            {session?.domain && (
-                                <div className={styles.domainBadge}>
-                                    {session.domain.domain.replace('_', ' ')} • {session.domain.industry}
-                                </div>
-                            )}
+                            <h1>Step {currentQuestionIndex + 1} of {questions.length}</h1>
+                            <p>Help us customize your website</p>
+
+                            <div className={styles.progressBarContainer}>
+                                <div
+                                    className={styles.progressBar}
+                                    style={{ width: `${((currentQuestionIndex + 1) / questions.length) * 100}%` }}
+                                ></div>
+                            </div>
                         </div>
 
                         <div className={styles.questionsList}>
-                            {questions.map((q, index) => (
-                                <div key={q.id} className={styles.questionCard} style={{ animationDelay: `${index * 0.1}s` }}>
-                                    <label className={styles.questionLabel}>
-                                        {q.question}
-                                        {q.required && <span className={styles.optional}> (optional)</span>}
-                                    </label>
+                            {/* We reuse questionsList class but now it holds just one active card */}
+                            {(() => {
+                                const q = questions[currentQuestionIndex];
+                                return (
+                                    <div key={q.id} className={`${styles.questionCard} ${styles.activeQuestion}`}>
+                                        <label className={styles.questionLabel}>
+                                            {q.question}
+                                            {q.required && <span className={styles.optional}> *</span>}
+                                            {!q.required && <span className={styles.optional}> (optional)</span>}
+                                        </label>
 
-                                    {q.type === 'text' && (
-                                        <input
-                                            type="text"
-                                            className={styles.input}
-                                            value={(answers[q.id] as string) || ''}
-                                            onChange={(e) => handleAnswerChange(q.id, e.target.value)}
-                                            placeholder={q.placeholder}
-                                        />
-                                    )}
+                                        {q.type === 'text' && (
+                                            <input
+                                                type="text"
+                                                className={styles.input}
+                                                value={(answers[q.id] as string) || ''}
+                                                onChange={(e) => handleAnswerChange(q.id, e.target.value)}
+                                                placeholder={q.placeholder}
+                                                autoFocus
+                                            />
+                                        )}
 
-                                    {q.type === 'textarea' && (
-                                        <textarea
-                                            className={styles.textarea}
-                                            value={(answers[q.id] as string) || ''}
-                                            onChange={(e) => handleAnswerChange(q.id, e.target.value)}
-                                            placeholder={q.placeholder}
-                                        />
-                                    )}
+                                        {q.type === 'textarea' && (
+                                            <textarea
+                                                className={styles.textarea}
+                                                value={(answers[q.id] as string) || ''}
+                                                onChange={(e) => handleAnswerChange(q.id, e.target.value)}
+                                                placeholder={q.placeholder}
+                                                autoFocus
+                                            />
+                                        )}
 
-                                    {q.type === 'select' && (
-                                        <select
-                                            className={styles.select}
-                                            value={(answers[q.id] as string) || ''}
-                                            onChange={(e) => handleAnswerChange(q.id, e.target.value)}
-                                        >
-                                            <option value="">Select an option...</option>
-                                            {q.options?.map(opt => (
-                                                <option key={opt} value={opt}>{opt}</option>
-                                            ))}
-                                        </select>
-                                    )}
+                                        {q.type === 'select' && (
+                                            <div className={styles.customSelectWrapper}>
+                                                <button
+                                                    type="button"
+                                                    className={`${styles.customSelectTrigger} ${isDropdownOpen ? styles.open : ''}`}
+                                                    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                                                >
+                                                    <span>{(answers[q.id] as string) || 'Select an option...'}</span>
+                                                    <ChevronDown size={20} className={`${styles.selectArrow} ${isDropdownOpen ? styles.rotated : ''}`} />
+                                                </button>
 
-                                    {q.type === 'multiselect' && (
-                                        <div className={styles.multiselect}>
-                                            {q.options?.map(opt => (
-                                                <label key={opt} className={styles.checkbox}>
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={((answers[q.id] as string[]) || []).includes(opt)}
-                                                        onChange={(e) => {
-                                                            const current = (answers[q.id] as string[]) || [];
-                                                            const updated = e.target.checked
-                                                                ? [...current, opt]
-                                                                : current.filter(v => v !== opt);
-                                                            handleAnswerChange(q.id, updated);
-                                                        }}
-                                                    />
-                                                    {opt}
-                                                </label>
-                                            ))}
-                                        </div>
-                                    )}
+                                                {isDropdownOpen && (
+                                                    <div className={styles.customSelectMenu}>
+                                                        {q.options?.map(opt => (
+                                                            <div
+                                                                key={opt}
+                                                                className={`${styles.customSelectOption} ${answers[q.id] === opt ? styles.selected : ''}`}
+                                                                onClick={() => {
+                                                                    handleAnswerChange(q.id, opt);
+                                                                    setIsDropdownOpen(false);
+                                                                }}
+                                                            >
+                                                                <span>{opt}</span>
+                                                                {answers[q.id] === opt && <Check size={16} className={styles.checkIcon} />}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
 
-                                    {q.type === 'yesno' && (
-                                        <div className={styles.yesno}>
-                                            <button
-                                                className={`${styles.yesnoBtn} ${answers[q.id] === true ? styles.selected : ''}`}
-                                                onClick={() => handleAnswerChange(q.id, true)}
-                                            >
-                                                Yes
-                                            </button>
-                                            <button
-                                                className={`${styles.yesnoBtn} ${answers[q.id] === false ? styles.selected : ''}`}
-                                                onClick={() => handleAnswerChange(q.id, false)}
-                                            >
-                                                No
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
+                                        {q.type === 'multiselect' && (
+                                            <div className={styles.multiselect}>
+                                                {q.options?.map(opt => {
+                                                    const isSelected = ((answers[q.id] as string[]) || []).includes(opt);
+                                                    return (
+                                                        <label key={opt} className={`${styles.optionBtn} ${isSelected ? styles.selected : ''}`}>
+                                                            <input
+                                                                type="checkbox"
+                                                                className={styles.hiddenInput}
+                                                                checked={isSelected}
+                                                                onChange={(e) => {
+                                                                    const current = (answers[q.id] as string[]) || [];
+                                                                    const updated = e.target.checked
+                                                                        ? [...current, opt]
+                                                                        : current.filter(v => v !== opt);
+                                                                    handleAnswerChange(q.id, updated);
+                                                                }}
+                                                            />
+                                                            <div className={styles.optionContent}>
+                                                                <div className={`
+                                                                    ${styles.checkboxIndicator} 
+                                                                    ${isSelected ? styles.checked : ''}
+                                                                `}>
+                                                                    {isSelected && <Check size={14} strokeWidth={3} />}
+                                                                </div>
+                                                                <span>{opt}</span>
+                                                            </div>
+                                                        </label>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+
+                                        {q.type === 'yesno' && (
+                                            <div className={styles.yesno}>
+                                                <button
+                                                    className={`${styles.yesnoBtn} ${answers[q.id] === true ? styles.selected : ''}`}
+                                                    onClick={() => handleAnswerChange(q.id, true)}
+                                                >
+                                                    Yes
+                                                </button>
+                                                <button
+                                                    className={`${styles.yesnoBtn} ${answers[q.id] === false ? styles.selected : ''}`}
+                                                    onClick={() => handleAnswerChange(q.id, false)}
+                                                >
+                                                    No
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })()}
                         </div>
 
                         <div className={styles.questionsFooter}>
+                            {currentQuestionIndex > 0 && (
+                                <button
+                                    className={styles.backBtn}
+                                    onClick={handlePreviousQuestion}
+                                    disabled={loading}
+                                >
+                                    <ChevronLeft size={18} />
+                                    <span>Back</span>
+                                </button>
+                            )}
+
                             <button
                                 className={styles.submitBtn}
-                                onClick={handleSubmitAnswers}
-                                disabled={loading}
+                                onClick={handleNextQuestion}
+                                disabled={loading || (questions[currentQuestionIndex]?.required && !isCurrentQuestionAnswered())}
                             >
                                 {loading ? (
                                     <>
@@ -525,7 +612,11 @@ export default function BuilderPage() {
                                         Processing...
                                     </>
                                 ) : (
-                                    'Continue to Blueprint →'
+                                    currentQuestionIndex === questions.length - 1 ? (
+                                        <>Create Blueprint <ChevronRight size={18} /></>
+                                    ) : (
+                                        <>Next Question <ChevronRight size={18} /></>
+                                    )
                                 )}
                             </button>
                         </div>

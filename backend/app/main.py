@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 import logging
 
 from app.config import settings
-from app.routers import session_database, intent, questions, blueprint, generate, edit, deploy, theme, assets, chat, dashboard
+from app.routers import session_database, intent, questions, blueprint, generate, edit, deploy, theme, assets, chat, dashboard, projects
 
 # Import new core infrastructure
 from app.core.logging import setup_logging
@@ -79,6 +79,7 @@ app.mount("/projects", StaticFiles(directory=str(settings.projects_dir)), name="
 # ==================== ROUTER REGISTRATION ====================
 
 app.include_router(session_database.router, prefix="/api/session", tags=["Session"])
+app.include_router(projects.router, prefix="/api/projects", tags=["Projects"])
 app.include_router(intent.router, prefix="/api", tags=["Intent"])
 app.include_router(questions.router, prefix="/api", tags=["Questions"])
 app.include_router(blueprint.router, prefix="/api", tags=["Blueprint"])
