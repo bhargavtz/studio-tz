@@ -14,12 +14,8 @@ export default function Home() {
   const router = useRouter();
   const { isSignedIn, isLoaded } = useUser();
 
-  // Redirect authenticated users to dashboard
-  useEffect(() => {
-    if (isLoaded && isSignedIn) {
-      router.push('/dashboard');
-    }
-  }, [isLoaded, isSignedIn, router]);
+
+  // No auto-redirect - users stay on landing page until they click dashboard
 
   // Mouse parallax effect
   useEffect(() => {
@@ -45,10 +41,9 @@ export default function Home() {
     setError('');
 
     try {
-      const sessionData = await api.createSession();
+      // Create session with the vision/intent directly
+      const sessionData = await api.createSession(intent);
       const sessionId = sessionData.session_id;
-
-      await api.processIntent(sessionId, intent);
 
       router.push(`/builder/${sessionId}`);
     } catch (err) {
@@ -109,6 +104,10 @@ export default function Home() {
                 </SignUpButton>
               </SignedOut>
               <SignedIn>
+                <a href="/dashboard" className={styles.dashboardButton}>
+                  <span>📊</span>
+                  <span>Dashboard</span>
+                </a>
                 <UserButton afterSignOutUrl="/" />
               </SignedIn>
             </div>
