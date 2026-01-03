@@ -5,23 +5,21 @@ Surgical mutations without breaking layout.
 """
 
 from typing import Dict, Any, Optional
-from pathlib import Path
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 import re
 
 
 class SafeEditEngine:
-    """Safe mutation engine for HTML/CSS/JS files."""
+    """Safe mutation engine for HTML/CSS/JS strings (stateless)."""
     
     def update_html_text(
         self,
-        file_path: Path,
+        content: str,
         ncd_id: str,
         new_text: str
     ) -> Dict[str, Any]:
         """Safely update text content of an HTML element."""
-        with open(file_path, 'r', encoding='utf-8') as f:
-            soup = BeautifulSoup(f, 'html.parser')
+        soup = BeautifulSoup(content, 'html.parser')
         
         # Find element by data-ncd-id
         element = soup.find(attrs={"data-ncd-id": ncd_id})
@@ -34,27 +32,23 @@ class SafeEditEngine:
         # Update text
         element.string = new_text
         
-        # Write back
-        with open(file_path, 'w', encoding='utf-8') as f:
-            f.write(str(soup.prettify()))
-        
         return {
             "success": True,
             "old_value": old_text,
             "new_value": new_text,
-            "ncd_id": ncd_id
+            "ncd_id": ncd_id,
+            "content": str(soup.prettify())  # Return full updated HTML
         }
     
     def update_html_attribute(
         self,
-        file_path: Path,
+        content: str,
         ncd_id: str,
         attribute: str,
         new_value: str
     ) -> Dict[str, Any]:
         """Safely update an HTML attribute."""
-        with open(file_path, 'r', encoding='utf-8') as f:
-            soup = BeautifulSoup(f, 'html.parser')
+        soup = BeautifulSoup(content, 'html.parser')
         
         element = soup.find(attrs={"data-ncd-id": ncd_id})
         if not element:
@@ -63,72 +57,22 @@ class SafeEditEngine:
         old_value = element.get(attribute, '')
         element[attribute] = new_value
         
-        with open(file_path, 'w', encoding='utf-8') as f:
-            f.write(str(soup.prettify()))
-        
         return {
             "success": True,
             "old_value": old_value,
             "new_value": new_value,
-            "attribute": attribute
+            "attribute": attribute,
+            "content": str(soup.prettify())
         }
     
     def update_css_property(
         self,
-        file_path: Path,
+        css_content: str,
         ncd_id: str,
         property_name: str,
         new_value: str
     ) -> Dict[str, Any]:
         """Safely update a CSS property for scoped selector."""
-        # Check if we should redirect to styles/main.css
-        # If file_path is index.html, look for styles/main.css
-        target_path = file_path
-        
-        if file_path.suffix == '.html':
-            potential_css = file_path.parent / 'styles' / 'main.css'
-            if potential_css.exists():
-                target_path = potential_css
-        
-        is_html = target_path.suffix == '.html'
-        
-        if is_html:
-            with open(target_path, 'r', encoding='utf-8') as f:
-                soup = BeautifulSoup(f, 'html.parser')
-            
-            # Find the style tag containing our scoped styles
-            style_tag = None
-            for tag in soup.find_all('style'):
-                if tag.string and 'NCD Scoped Styles' in tag.string:
-                    style_tag = tag
-                    break
-            
-            if not style_tag:
-                # Look for any style tag or create new
-                style_tags = soup.find_all('style')
-                if style_tags:
-                    style_tag = style_tags[-1]
-                else:
-                    head = soup.find('head')
-                    if not head:
-                        if soup.html:
-                            head = soup.new_tag('head')
-                            soup.html.insert(0, head)
-                        else:
-                            # Edge case: empty file
-                            soup.append(soup.new_tag('html'))
-                            head = soup.new_tag('head')
-                            soup.html.append(head)
-                            
-                    style_tag = soup.new_tag('style')
-                    style_tag.string = "/* NCD Scoped Styles */\n"
-                    head.append(style_tag)
-            
-            css_content = style_tag.string or ""
-        else:
-            with open(target_path, 'r', encoding='utf-8') as f:
-                css_content = f.read()
-        
         # Selector for this specific element
         selector = f'[data-ncd-id="{ncd_id}"]'
         
@@ -139,6 +83,7 @@ class SafeEditEngine:
         )
         
         match = pattern.search(css_content)
+        old_value = None
         
         if match:
             # Rule exists, update property
@@ -147,7 +92,6 @@ class SafeEditEngine:
                 rf'{re.escape(property_name)}\s*:\s*([^;]+);'
             )
             
-            old_value = None
             if prop_pattern.search(rule_content):
                 # Property exists, replace it
                 old_match = prop_pattern.search(rule_content)
@@ -172,30 +116,22 @@ class SafeEditEngine:
             new_rule = f'\n{selector} {{\n  {property_name}: {new_value};\n}}\n'
             new_css = css_content + new_rule
         
-        if is_html:
-            style_tag.string = new_css
-            with open(target_path, 'w', encoding='utf-8') as f:
-                f.write(str(soup.prettify()))
-        else:
-            with open(target_path, 'w', encoding='utf-8') as f:
-                f.write(new_css)
-        
         return {
             "success": True,
             "old_value": old_value,
             "new_value": new_value,
-            "property": property_name
+            "property": property_name,
+            "content": new_css
         }
     
     def add_html_class(
         self,
-        file_path: Path,
+        content: str,
         ncd_id: str,
         class_name: str
     ) -> Dict[str, Any]:
         """Add a class to an element."""
-        with open(file_path, 'r', encoding='utf-8') as f:
-            soup = BeautifulSoup(f, 'html.parser')
+        soup = BeautifulSoup(content, 'html.parser')
         
         element = soup.find(attrs={"data-ncd-id": ncd_id})
         if not element:
@@ -206,24 +142,21 @@ class SafeEditEngine:
             current_classes.append(class_name)
             element['class'] = current_classes
         
-        with open(file_path, 'w', encoding='utf-8') as f:
-            f.write(str(soup.prettify()))
-        
         return {
             "success": True,
             "class_added": class_name,
-            "classes": current_classes
+            "classes": current_classes,
+            "content": str(soup.prettify())
         }
     
     def remove_html_class(
         self,
-        file_path: Path,
+        content: str,
         ncd_id: str,
         class_name: str
     ) -> Dict[str, Any]:
         """Remove a class from an element."""
-        with open(file_path, 'r', encoding='utf-8') as f:
-            soup = BeautifulSoup(f, 'html.parser')
+        soup = BeautifulSoup(content, 'html.parser')
         
         element = soup.find(attrs={"data-ncd-id": ncd_id})
         if not element:
@@ -234,13 +167,11 @@ class SafeEditEngine:
             current_classes.remove(class_name)
             element['class'] = current_classes
         
-        with open(file_path, 'w', encoding='utf-8') as f:
-            f.write(str(soup.prettify()))
-        
         return {
             "success": True,
             "class_removed": class_name,
-            "classes": current_classes
+            "classes": current_classes,
+            "content": str(soup.prettify())
         }
 
 

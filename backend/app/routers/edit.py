@@ -1,20 +1,21 @@
 """
 NCD INAI - Edit Router (Surgical Edit System)
+Migrated to UnifiedFileStore (Cloud Native)
 """
 
 import logging
-from typing import Optional, Any
-from fastapi import APIRouter, HTTPException
+import json
+from typing import Optional, Any, List
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
-from bs4 import BeautifulSoup
+from uuid import UUID
 
-from app.services.session_manager import session_manager
-from app.services.file_manager import file_manager
-from app.services.component_registry import ComponentRegistry
-from app.services.edit_history import EditHistory
+from app.services.new_session_service import SessionService
+from app.infrastructure.storage.file_store import UnifiedFileStore
+from app.api.dependencies import get_session_service, get_file_store
 from app.services.safe_edit_engine import safe_edit_engine
-from app.models.session import SessionStatus
 from app.agents.editor import editor_planner
+from app.database.models import SessionStatus
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -36,7 +37,6 @@ class ManualEditRequest(BaseModel):
     value: Optional[Any] = None
 
 
-
 class EditResponse(BaseModel):
     success: bool
     ncd_id: str
@@ -47,18 +47,22 @@ class EditResponse(BaseModel):
 
 
 @router.post("/edit/{session_id}", response_model=EditResponse)
-async def apply_manual_edit(session_id: str, request: ManualEditRequest):
+async def apply_manual_edit(
+    session_id: str, 
+    request: ManualEditRequest,
+    session_service: SessionService = Depends(get_session_service),
+    file_store: UnifiedFileStore = Depends(get_file_store)
+):
     """Apply a manual direct edit to a file."""
-    session = session_manager.get_session(session_id)
-
+    # Validate UUID
+    try:
+        session_uuid = UUID(session_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid session ID")
+        
+    session = await session_service.get_session(session_uuid)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-
-    if not session.files_generated:
-        raise HTTPException(
-            status_code=400,
-            detail="Website not generated yet."
-        )
 
     # For manual edits, the value should contain the new content
     if request.edit_type != "manual":
@@ -73,279 +77,199 @@ async def apply_manual_edit(session_id: str, request: ManualEditRequest):
             detail="Manual edits require a 'value' containing the new file content as a string."
         )
 
-    # Write the new content directly
-    file_manager.write_file(session_id, request.file_path, request.value)
+    # Save the new content directly to R2
+    # Ensure correct file type mapping
+    file_type = "text"
+    if request.file_path.endswith('.html'): file_type = "html"
+    elif request.file_path.endswith('.css'): file_type = "css"
+    elif request.file_path.endswith('.js'): file_type = "javascript"
+    
+    try:
+        file_info = await file_store.save_file(
+            session_id=session_uuid,
+            filename=request.file_path,
+            content=request.value,
+            file_type=file_type,
+            user_id=session.user_id
+        )
+        
+        # Update session status
+        await session_service.update_session(session_uuid, status=SessionStatus.EDITING.value)
 
-    # Save to history
-    session_dir = file_manager.get_session_path(session_id)
-    history = EditHistory(session_dir)
-
-    # Read old content for history
-    old_content = file_manager.read_file(session_id, request.file_path) or ""
-
-    version = history.save_diff(
-        file_path=request.file_path,
-        ncd_id="manual-edit",
-        before=old_content,
-        after=request.value,
-        edit_type="manual"
-    )
-
-    return EditResponse(
-        success=True,
-        ncd_id="manual",
-        action="OVERWRITE",
-        changes_description=f"Manual edit to {request.file_path}",
-        preview_url=file_manager.get_preview_url(session_id),
-        version=version
-    )
+        return EditResponse(
+            success=True,
+            ncd_id="manual",
+            action="OVERWRITE",
+            changes_description=f"Manual edit to {request.file_path}",
+            preview_url=file_info['r2_url'],
+            version=0 # Versioning temporarily disabled
+        )
+    except Exception as e:
+        logger.error(f"Manual edit failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/edit/{session_id}/structured", response_model=EditResponse)
-async def structured_edit(session_id: str, request: StructuredEditRequest):
+async def structured_edit(
+    session_id: str, 
+    request: StructuredEditRequest,
+    session_service: SessionService = Depends(get_session_service),
+    file_store: UnifiedFileStore = Depends(get_file_store)
+):
     """Apply a structured edit using NCD ID."""
-    session = session_manager.get_session(session_id)
-    
+    try:
+        session_uuid = UUID(session_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid session ID")
+        
+    session = await session_service.get_session(session_uuid)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     
-    if not session.files_generated:
-        raise HTTPException(
-            status_code=400,
-            detail="Website not generated yet."
-        )
+    # We need to find which file contains this NCD ID.
+    # In the legacy systems, we had a component registry.
+    # For now, we'll assume it's in index.html unless specified otherwise,
+    # or we should search all HTML files. 
+    # To keep it simple for this migration: check index.html first.
     
-    # Get session directory
-    session_dir = file_manager.get_session_path(session_id)
+    target_file = "index.html"
+    content_bytes = await file_store.get_file(session_uuid, target_file)
     
-    # Initialize registry and history
-    registry = ComponentRegistry(session_dir)
-    history = EditHistory(session_dir)
-    
-    # Get component info
-    component = registry.get(request.ncd_id)
-    if not component:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Component {request.ncd_id} not found in registry"
-        )
+    if not content_bytes:
+        raise HTTPException(status_code=404, detail="index.html not found")
+        
+    content_str = content_bytes.decode('utf-8') if isinstance(content_bytes, bytes) else content_bytes
     
     # Get current value if not provided
     current_value = request.current_value or ""
-    if not current_value and component["edit_type"] == "text":
-        # Read from file
-        file_content = file_manager.read_file(session_id, component["file"])
-        if file_content:
-            from bs4 import BeautifulSoup
-            soup = BeautifulSoup(file_content, 'html.parser')
-            element = soup.find(attrs={"data-ncd-id": request.ncd_id})
-            if element:
-                current_value = element.get_text(strip=True)
+    # We could extract it from new content_str similarly to legacy code
+    # But let's proceed to planning.
     
     # Plan the edit using AI
+    # Note: component["type"] and "file" are missing because we don't have the registry.
+    # We'll infer type as 'unknown' for now.
+    
     edit_plan = await editor_planner.plan_edit(
         ncd_id=request.ncd_id,
-        file_path=component["file"],
-        element_type=component["type"],
+        file_path=target_file,
+        element_type="unknown", 
         current_value=current_value,
         instruction=request.instruction
     )
     
     # Execute the edit using safe engine
-    file_path = session_dir / component["file"]
     action = edit_plan.get("action")
     params = edit_plan.get("parameters", {})
+    
+    result = None
+    updated_content = None
+    changes_desc = edit_plan.get("reasoning", "Edit applied")
     
     try:
         if action == "UPDATE_TEXT":
             result = safe_edit_engine.update_html_text(
-                file_path,
+                content_str,
                 request.ncd_id,
                 params.get("new_text", "")
             )
+            updated_content = result["content"]
             
-            # Save to history
-            version = history.save_diff(
-                file_path=component["file"],
-                ncd_id=request.ncd_id,
-                before=result["old_value"],
-                after=result["new_value"],
-                edit_type="text"
-            )
-        
         elif action == "UPDATE_STYLE":
-            # Determine CSS file
-            css_file = session_dir / "styles/main.css"
-            result = safe_edit_engine.update_css_property(
-                css_file,
-                request.ncd_id,
-                params.get("property", ""),
-                params.get("value", "")
-            )
+            # For styles, we might need to edit CSS or HTML style block
+            # If the engine supports CSS editing, we verify file type.
+            # safe_edit_engine.update_css_property now handles CSS content string
             
-            version = history.save_diff(
-                file_path="styles/main.css",
-                ncd_id=request.ncd_id,
-                before=result["old_value"],
-                after=result["new_value"],
-                edit_type="style"
-            )
-        
+            # If target is CSS file
+            css_file = "styles/main.css"
+            css_bytes = await file_store.get_file(session_uuid, css_file)
+            
+            if css_bytes:
+                css_str = css_bytes.decode('utf-8') if isinstance(css_bytes, bytes) else css_bytes
+                result = safe_edit_engine.update_css_property(
+                    css_str,
+                    request.ncd_id,
+                    params.get("property", ""),
+                    params.get("value", "")
+                )
+                
+                # Save CSS
+                await file_store.save_file(
+                    session_id=session_uuid,
+                    filename=css_file,
+                    content=result["content"],
+                    file_type="css",
+                    user_id=session.user_id
+                )
+                
+                return EditResponse(
+                    success=True,
+                    ncd_id=request.ncd_id,
+                    action=action,
+                    changes_description=changes_desc,
+                    preview_url=(await file_store.get_file_url(session_uuid, target_file)) or "",
+                    version=0
+                )
+            else:
+                # Fallback to HTML style block if supported by engine
+                # For now, simplistic fallback:
+                raise HTTPException(status_code=400, detail="CSS file not found for style update")
+
         elif action == "UPDATE_ATTRIBUTE":
             result = safe_edit_engine.update_html_attribute(
-                file_path,
+                content_str,
                 request.ncd_id,
                 params.get("attribute", ""),
                 params.get("value", "")
             )
-            
-            version = history.save_diff(
-                file_path=component["file"],
-                ncd_id=request.ncd_id,
-                before=result["old_value"],
-                after=result["new_value"],
-                edit_type="attribute"
-            )
-        
+            updated_content = result["content"]
+
         elif action == "ADD_CLASS":
             result = safe_edit_engine.add_html_class(
-                file_path,
+                content_str,
                 request.ncd_id,
                 params.get("class_name", "")
             )
-            
-            version = history.save_diff(
-                file_path=component["file"],
-                ncd_id=request.ncd_id,
-                before="",
-                after=params.get("class_name", ""),
-                edit_type="add_class"
-            )
-        
+            updated_content = result["content"]
+
         elif action == "REMOVE_CLASS":
             result = safe_edit_engine.remove_html_class(
-                file_path,
+                content_str,
                 request.ncd_id,
                 params.get("class_name", "")
             )
+            updated_content = result["content"]
             
-            version = history.save_diff(
-                file_path=component["file"],
-                ncd_id=request.ncd_id,
-                before=params.get("class_name", ""),
-                after="",
-                edit_type="remove_class"
-            )
-        
         else:
-            raise ValueError(f"Unknown action: {action}")
-        
-        # Update session status
-        session.status = SessionStatus.EDITING
-        session_manager.update_session(session)
-        
-        return EditResponse(
-            success=True,
-            ncd_id=request.ncd_id,
-            action=action,
-            changes_description=edit_plan.get("reasoning", "Edit applied"),
-            preview_url=file_manager.get_preview_url(session_id),
-            version=version
-        )
-    
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Edit failed: {str(e)}"
-        )
-
-
-class RollbackRequest(BaseModel):
-    version: int
-
-
-class RollbackResponse(BaseModel):
-    success: bool
-    message: str
-    current_version: int
-
-
-@router.post("/edit/{session_id}/rollback", response_model=RollbackResponse)
-async def rollback_edit(session_id: str, request: RollbackRequest):
-    """Rollback to a previous version."""
-    session = session_manager.get_session(session_id)
-    
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
-    
-    session_dir = file_manager.get_session_path(session_id)
-    history = EditHistory(session_dir)
-    
-    try:
-        # Get diffs to reverse
-        diffs_to_reverse = history.rollback_to(request.version)
-        
-        # Apply each diff in reverse
-        for diff in diffs_to_reverse:
-            file_path = session_dir / diff["file"]
-            ncd_id = diff["ncd_id"]
+             raise ValueError(f"Unknown action: {action}")
+             
+        # Save updated HTML
+        if updated_content:
+            file_info = await file_store.save_file(
+                session_id=session_uuid,
+                filename=target_file,
+                content=updated_content,
+                file_type="html",
+                user_id=session.user_id
+            )
             
-            if diff["edit_type"] == "text":
-                safe_edit_engine.update_html_text(
-                    file_path,
-                    ncd_id,
-                    diff["before"]
-                )
-            elif diff["edit_type"] == "style":
-                css_file = session_dir / "styles" / "main.css"
-                # Extract property from diff metadata
-                safe_edit_engine.update_css_property(
-                    css_file,
-                    ncd_id,
-                    diff.get("property", ""),
-                    diff["before"] or ""
-                )
-        
-        history.current_version = request.version
-        
-        return RollbackResponse(
-            success=True,
-            message=f"Rolled back to version {request.version}",
-            current_version=request.version
-        )
-    
+            await session_service.update_session(session_uuid, status=SessionStatus.EDITING.value)
+            
+            return EditResponse(
+                success=True,
+                ncd_id=request.ncd_id,
+                action=action,
+                changes_description=changes_desc,
+                preview_url=file_info['r2_url'],
+                version=0
+            )
+            
+        raise HTTPException(status_code=500, detail="No content updated")
+
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Rollback failed: {str(e)}"
-        )
+        logger.error(f"Structured edit failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Edit failed: {str(e)}")
 
 
-class HistoryResponse(BaseModel):
-    versions: list
-    current_version: int
-
-
-@router.get("/edit/{session_id}/history", response_model=HistoryResponse)
-async def get_edit_history(session_id: str, limit: int = 20):
-    """Get edit history."""
-    session = session_manager.get_session(session_id)
-    
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
-    
-    session_dir = file_manager.get_session_path(session_id)
-    history = EditHistory(session_dir)
-    
-    versions = history.get_history(limit=limit)
-    
-    return HistoryResponse(
-        versions=versions,
-        current_version=history.current_version
-    )
-
-
-# Keep old chat endpoint for backward compatibility
 class ChatEditRequest(BaseModel):
     message: str
 
@@ -358,31 +282,33 @@ class ChatEditResponse(BaseModel):
 
 
 @router.post("/edit/{session_id}/chat", response_model=ChatEditResponse)
-async def chat_edit(session_id: str, request: ChatEditRequest):
-    """Apply ANY edits via natural language - add sections, images, change layout, anything!"""
-    session = session_manager.get_session(session_id)
-    
+async def chat_edit(
+    session_id: str, 
+    request: ChatEditRequest,
+    session_service: SessionService = Depends(get_session_service),
+    file_store: UnifiedFileStore = Depends(get_file_store)
+):
+    """Apply ANY edits via natural language."""
+    try:
+        session_uuid = UUID(session_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid session ID")
+        
+    session = await session_service.get_session(session_uuid)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    
-    if not session.files_generated:
-        raise HTTPException(
-            status_code=400,
-            detail="Website not generated yet."
-        )
-    
+        
     try:
         from app.services.surgical_groq_editor import surgical_editor
         
-        html_content = file_manager.read_file(session_id, "index.html") or ""
-        css_content = file_manager.read_file(session_id, "styles.css") or ""
+        # Read HTML and CSS
+        html_bytes = await file_store.get_file(session_uuid, "index.html")
+        css_bytes = await file_store.get_file(session_uuid, "styles/main.css")
         
-        logger.info("Processing chat edit request", extra={
-            "session_id": session_id,
-            "message": request.message
-        })
+        html_content = html_bytes.decode('utf-8') if html_bytes else ""
+        css_content = css_bytes.decode('utf-8') if css_bytes else ""
         
-        # Use Surgical AI to modify ONLY what user requests
+        # Use Surgical AI
         result = await surgical_editor.modify_website(
             user_request=request.message,
             current_html=html_content,
@@ -390,50 +316,98 @@ async def chat_edit(session_id: str, request: ChatEditRequest):
         )
         
         if not result['success']:
+             # In case of failure, check if we have a preview URL to return
+            preview_url = await file_store.get_file_url(session_uuid, "index.html")
             return ChatEditResponse(
                 success=False,
                 changes=[],
                 message=result['message'],
-                preview_url=file_manager.get_preview_url(session_id)
+                preview_url=preview_url or ""
             )
-        
+            
         # Save modified files
         changes = []
+        preview_url = ""
         
         # Save HTML
-        file_manager.write_file(session_id, "index.html", result['html'])
-        changes.append({
-            "file": "index.html",
-            "change_type": "modified",
-            "description": "Updated HTML based on AI modifications"
-        })
-        
-        # Save CSS if extracted
-        if result.get('css'):
-            file_manager.write_file(session_id, "styles.css", result['css'])
+        if result.get('html') and result['html'] != html_content:
+            file_info = await file_store.save_file(
+                session_id=session_uuid,
+                filename="index.html",
+                content=result['html'],
+                file_type="html",
+                user_id=session.user_id
+            )
             changes.append({
-                "file": "styles.css",
+                "file": "index.html",
                 "change_type": "modified",
-                "description": "Updated CSS styles"
+                "description": "Updated HTML"
             })
-        
-        success_message = f"✓ {result['description']}\n\n{result['message']}"
+            preview_url = file_info['r2_url']
+            
+        # Save CSS
+        if result.get('css') and result['css'] != css_content:
+            await file_store.save_file(
+                session_id=session_uuid,
+                filename="styles/main.css",
+                content=result['css'],
+                file_type="css",
+                user_id=session.user_id
+            )
+            changes.append({
+                "file": "styles/main.css",
+                "change_type": "modified",
+                "description": "Updated CSS"
+            })
+
+        await session_service.update_session(session_uuid, status=SessionStatus.EDITING.value)
         
         return ChatEditResponse(
             success=True,
             changes=changes,
-            message=success_message,
-            preview_url=file_manager.get_preview_url(session_id)
+            message=result['message'],
+            preview_url=preview_url
         )
         
     except Exception as e:
-        logger.exception("Chat edit failed", extra={
-            "session_id": session_id,
-            "error": str(e)
-        })
+        logger.exception(f"Chat edit failed: {e}")
+        # Try getting preview url even on error
+        p_url = await file_store.get_file_url(session_uuid, "index.html")
         return ChatEditResponse(
             success=False,
             changes=[],
             message=f"Error: {str(e)}",
-            preview_url=file_manager.get_preview_url(session_id)
+            preview_url=p_url or ""
         )
+
+
+# Backward compatibility stubs for rollback/history
+class RollbackRequest(BaseModel):
+    version: int
+
+class RollbackResponse(BaseModel):
+    success: bool
+    message: str
+    current_version: int
+
+@router.post("/edit/{session_id}/rollback", response_model=RollbackResponse)
+async def rollback_edit(session_id: str, request: RollbackRequest):
+    """Rollback - Placeholder."""
+    return RollbackResponse(
+        success=False,
+        message="Versioning temporarily provided via database backups only.",
+        current_version=0
+    )
+
+
+class HistoryResponse(BaseModel):
+    versions: list
+    current_version: int
+
+@router.get("/edit/{session_id}/history", response_model=HistoryResponse)
+async def get_edit_history(session_id: str):
+    """Get history - Placeholder."""
+    return HistoryResponse(
+        versions=[],
+        current_version=0
+    )

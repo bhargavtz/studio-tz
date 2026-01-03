@@ -65,6 +65,7 @@ class AnswersRequest(BaseModel):
             elif q_type == 'multiselect':
                 if not isinstance(answer, list):
                     raise ValueError(f"Question {q_id} must be a list")
+                options = question.get('options', [])
                 if options:
                     for item in answer:
                         if item not in options:
